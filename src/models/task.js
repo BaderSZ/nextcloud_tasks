@@ -101,8 +101,8 @@ export default class Task {
 		this.calendar = calendar
 
 		/**
+		 * @name Task#subTasks
 		 * @type {object}
-		 * @todo
 		 */
 		this.subTasks = {}
 
@@ -110,6 +110,7 @@ export default class Task {
 		 * Used to state a task is not up to date with the server
 		 * and cannot be pushed (etag).
 		 *
+		 * @name Task#conflict
 		 * @type {boolean}
 		 */
 		this.conflict = false
@@ -117,6 +118,7 @@ export default class Task {
 		/**
 		 * Task's sync status
 		 *
+		 * @name Task#syncStatus
 		 * @type {SyncStatus|null}
 		 */
 		this.syncStatus = null
@@ -124,6 +126,7 @@ export default class Task {
 		/**
 		 * Time in seconds before the task is going to be deleted.
 		 *
+		 * @name Task#deleteCountdown
 		 * @type {number|null}
 		 */
 		this.deleteCountdown = null
@@ -141,6 +144,7 @@ export default class Task {
 	/**
 	 * Initialize task from ToDoComponent object
 	 *
+	 * @todo remove function and place this in constructor?
 	 * @private
 	 */
 	initTodo() {
@@ -151,14 +155,14 @@ export default class Task {
 		 *
 		 * @type {string}
 		 */
-		this._uid = this.toDoComponent.uid || ''
+		this._uid = this.toDoComponent.uid
 
 		/**
 		 * The Title/Summary of the task
 		 *
 		 * @type {string}
 		 */
-		this._summary = this.toDoComponent.title || ''
+		this._summary = this.toDoComponent.title
 
 		/**
 		 * Priority of the task. Acceptable values are between 0 and 9.
@@ -167,7 +171,7 @@ export default class Task {
 		 *
 		 * @type {number} UNDEFINED: 0, HIGH: 1 to 4, MEDIUM: 5, LOW: 6 to 9.
 		 */
-		this._priority = this.toDoComponent.priority || 0
+		this._priority = this.toDoComponent.priority
 
 		/**
 		 * Percent-Progress of the task.
@@ -177,15 +181,14 @@ export default class Task {
 		 * @type {number} Percent: not started: 0, in-process: 1->99,
 		 * complete: 100
 		 */
-		this._complete = this.toDoComponent.percent || 0
+		this._percent = this.toDoComponent.percent
 
 		/**
 		 * Completed status of the task. True if status is completed or cancelled.
 		 *
 		 * @type {boolean}
 		 */
-		this._completed = this.toDoComponent.completed || this.toDoComponent.getFirstPropertyFirstValue('PERCENT-COMPLETE') === 100
-
+		this._completed = this.toDoComponent.completed || this.toDoComponent.percent === 100
 		/**
 		 * Task description
 		 *
@@ -194,14 +197,14 @@ export default class Task {
 		 * @type {string|null}
 		 */
 
-		this._note = this.toDoComponent.description || null
+		this._note = this.toDoComponent.description
 
 		/**
 		 * Duration of the task
 		 *
 		 * @type {DurationValue|null}
 		 */
-		this._duration = this.toDoComponent.duration || null
+		this._duration = this.toDoComponent.duration
 
 		/**
 		 * Date and time of completion
@@ -210,12 +213,12 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._completedDate = this.toDoComponent.getFirstPropertyFirstValue('completed') || null
+		this._completedTime = this.toDoComponent.completedDate
 
 		/**
 		 * @todo
 		 */
-		this._completedDateMoment = getMomentFromDateTimeValue(this._completedDate) || null
+		this._completedDateMoment = getMomentFromDateTimeValue(this._completedTime) || null
 
 		/**
 		 * status of the task. Valid results include:
@@ -232,9 +235,11 @@ export default class Task {
 		 *
 		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.5
 		 *
-		 * @type {string} unique ID of the parent task
+		 * @type {string|null} unique ID of the parent task
 		 */
-		this._related = this.toDoComponent.getRelationList()[0] !== undefined && this.toDoComponent.getRelationList()[0].relationType === 'PARENT' ? this.toDoComponent.getRelationList()[0].relatedId : null
+		this._related = this.toDoComponent.getRelationList()[0]?.relationType === 'PARENT'
+			? this.toDoComponent.getRelationList()[0].relatedId
+			: null
 
 		/**
 		 * Show or hide subtasks of tasks
@@ -257,14 +262,14 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._startDate = this.toDoComponent.getFirstPropertyFirstValue('dtstart') || null
+		this._startDate = this.toDoComponent.startDate
 
 		/**
 		 * Start moment
 		 *
 		 * @type {moment|null}
 		 */
-		this._startMoment = getMomentFromDateTimeValue(this._startDate) || null
+		this._startMoment = getMomentFromDateTimeValue(this._startDate)
 
 		/**
 		 * Expected due date of the task
@@ -273,7 +278,7 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._due = this.toDoComponent.getFirstPropertyFirstValue('due') || null
+		this._due = this.toDoComponent.dueTime
 
 		/**
 		 * If task is all-day
@@ -289,14 +294,14 @@ export default class Task {
 		 *
 		 * @type {moment|null}
 		 */
-		this._dueMoment = getMomentFromDateTimeValue(this._due) || null
+		this._dueMoment = getMomentFromDateTimeValue(this._due)
 
 		/**
 		 * Is this task all-day?
 		 *
 		 * @type {boolean|null}
 		 */
-		this._isAllDay = this.toDoComponent.isAllDay() || null
+		this._isAllDay = this.toDoComponent.isAllDay()
 
 		/**
 		 * Save if this task has been loaded to the calendar or not
@@ -319,7 +324,7 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._modified = this.toDoComponent.getFirstPropertyFirstValue('last-modified') || null
+		this._modified = this.toDoComponent.modificationTime
 
 		/**
 		 * Modified moment
@@ -353,7 +358,7 @@ export default class Task {
 		 *
 		 * @type {string}
 		 */
-		this._class = this.toDoComponent.getFirstPropertyFirstValue('class') || 'PUBLIC'
+		this._accessClass = this.toDoComponent.accessClass
 
 		/**
 		 * Has the task been pinned?
@@ -363,7 +368,6 @@ export default class Task {
 		this._pinned = this.toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true'
 
 		let sortOrder = this.toDoComponent.getFirstPropertyFirstValue('x-apple-sort-order')
-
 		if (sortOrder === null) {
 			sortOrder = this.getSortOrder()
 		}
@@ -419,9 +423,9 @@ export default class Task {
 		 * @see https://github.com/nextcloud/calendar-js/blob/main/src/values/recurValue.js
 		 * @todo Implement @calendar-js/recurrenceRule/RecurValue
 		 *
-		 * @type {RecurValue[]|null}
+		 * @type {RecurValue[]}
 		 */
-		this._recurrenceRuleList = null
+		this._recurrenceRuleList = []
 
 		/**
 		 * Checks whether component is recurring or not
