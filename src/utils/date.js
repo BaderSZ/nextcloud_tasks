@@ -21,6 +21,7 @@
  */
 import logger from './logger.js'
 import { DateTimeValue } from '@nextcloud/calendar-js'
+import moment from '@nextcloud/moment'
 
 /**
  * returns a new Date object
@@ -111,3 +112,16 @@ export function getDateFromDateTimeValue(dateTimeValue) {
 		0,
 	)
 }
+
+/**
+ * Return Moment from DateTimeValue
+ *
+ * @param {DateTimeValue} dateTimeValue date of object
+ * @return {string}
+ */
+export function getMomentFromDateTimeValue(dateTimeValue) {
+	const jsDate = dateTimeValue?.jsDate
+	return moment(jsDate, 'YYYYMMDDTHHmmss')
+}
+
+export { moment }
