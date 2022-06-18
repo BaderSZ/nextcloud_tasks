@@ -665,6 +665,7 @@ export default class Task {
 	 */
 	setStatus(status) {
 		this.toDoComponent.status = status
+		this.toDoComponent.undirtify()
 		this._status = this.toDoComponent.status
 	}
 
