@@ -222,4 +222,30 @@ describe('task', () => {
 		task.complete = 100
 		expect(task.closed).toEqual(true)
 	})
+
+	it('Make sure changes do not leave the task marked dirty', () => {
+		const task = new Task(loadICS('vcalendars/vcalendar-default'), {})
+		// make sure task is not dirty when loaded.
+		// perhaps a loop+dict will be nicer here
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.summary = 'my new summary'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.related = 'newparent123'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.priority = 5
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.complete = 0
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.complete = 100
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.uid = 'randomuidhere'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.status = 'IN-PROCESS'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.tags = ['tag 1', 'tag 2']
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.created = ICAL.Time.fromDateTimeString('2018-11-19T18:39:11')
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+	})
+
 })
