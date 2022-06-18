@@ -45,7 +45,7 @@ describe('task', () => {
 		task.status = 'NEEDS-ACTION'
 		expect(task.complete).toEqual(0)
 		// Check that property gets removed instead of being set to zero
-		const complete = task.vtodo.getFirstPropertyValue('percent-complete')
+		const complete = task.toDoComponent.getFirstPropertyFirstValue('percent-complete')
 		expect(complete).toEqual(null)
 		expect(task.completed).toEqual(false)
 		expect(task.completedDate).toEqual(null)
@@ -101,7 +101,7 @@ describe('task', () => {
 		task.priority = 0
 		expect(task.priority).toEqual(0)
 		// Check that property gets removed instead of being set to zero
-		const priority = task.vtodo.getFirstPropertyValue('priority')
+		const priority = task.toDoComponent.getFirstPropertyFirstValue('priority')
 		expect(priority).toEqual(null)
 	})
 
@@ -209,7 +209,7 @@ describe('task', () => {
 		const task = new Task(loadICS('vcalendars/vcalendar-default'), {})
 		task.status = null
 		// Check that status gets removed instead of being set to zero
-		const complete = task.vtodo.getFirstPropertyValue('status')
+		const complete = task.toDoComponent.getFirstPropertyFirstValue('status')
 		expect(complete).toEqual(null)
 	})
 
