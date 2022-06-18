@@ -50,7 +50,7 @@ import SyncStatus from './syncStatus.js'
  * @classdesc Wrapper for ToDoComponent
  *
  * @todo throw exceptions
- * @todo value checking and enforcing
+ * @todo confirm and verify value checking and enforcing
  *
  * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.2
  * @see https://github.com/nextcloud/calendar-js/blob/main/src/components/root/toDoComponent.js
@@ -522,8 +522,9 @@ export default class Task {
 
 	/** @type {string} */
 	set uid(uid) {
-		this.toDoComponent.updatePropertyWithValue('uid', uid)
-		this._uid = this.toDoComponent.getFirstPropertyFirstValue('uid') || ''
+		this.toDoComponent.uid = uid
+		this.toDoComponent.undirtify()
+		this._uid = this.toDoComponent.uid
 	}
 
 	/** @type {string} */
@@ -533,9 +534,9 @@ export default class Task {
 
 	/** @type {string} */
 	set summary(summary) {
-		this.toDoComponent.updatePropertyWithValue('summary', summary)
-		this.updateLastModified()
-		this._summary = this.toDoComponent.getFirstPropertyFirstValue('summary') || ''
+		this.toDoComponent.summary = summary
+		this.toDoComponent.undirtify()
+		this._summary = this.toDoComponent.summary
 	}
 
 	/** @type {number} */
@@ -545,14 +546,9 @@ export default class Task {
 
 	/** @type {number} */
 	set priority(priority) {
-		// TODO: check that priority is >= 0 and <10
-		if (priority === null || priority === 0) {
-			this.toDoComponent.deleteAllProperties('priority')
-		} else {
-			this.toDoComponent.updatePropertyWithValue('priority', priority)
-		}
-		this.updateLastModified()
-		this._priority = this.toDoComponent.getFirstPropertyFirstValue('priority') || 0
+		this.toDoComponent.priority = (priority === 0) ? null : priority
+		this.toDoComponent.undirtify()
+		this._priority = this.toDoComponent.priority
 	}
 
 	/** @type {boolean} */
@@ -562,12 +558,12 @@ export default class Task {
 
 	/** @type {number} */
 	get complete() {
-		return Number(this._complete)
+		return Number(this._percent)
 	}
 
 	/** @type {number} */
 	set complete(complete) {
-		this.setComplete(complete)
+		this.setPercent(complete)
 		// Make complete a number
 		complete = +complete
 		if (complete < 100) {
@@ -589,14 +585,10 @@ export default class Task {
 	 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.8
 	 * @param {number} complete Progress of the task
 	 */
-	setComplete(complete) {
-		if (complete === null || complete === 0) {
-			this.toDoComponent.deleteAllProperties('PERCENT-COMPLETE')
-		} else {
-			this.toDoComponent.updatePropertyWithValue('PERCENT-COMPLETE', complete)
-		}
-		this.updateLastModified()
-		this._complete = this.toDoComponent.getFirstPropertyFirstValue('PERCENT-COMPLETE') || 0
+	setPercent(complete) {
+		this.toDoComponent.percent = complete
+		this.toDoComponent.undirtify()
+		this._percent = this.toDoComponent.percent
 	}
 
 	/** @type {boolean} */
@@ -606,14 +598,13 @@ export default class Task {
 
 	/** @type {boolean} */
 	set completed(completed) {
-		this.setCompleted(completed)
 		if (completed) {
-			this.setComplete(100)
-			this.setStatus('COMPLETED')
+			this.complete = 100
+			this.status = 'COMPLETED'
 		} else {
 			if (this.complete === 100) {
-				this.setComplete(99)
-				this.setStatus('IN-PROCESS')
+				this.complete = 99
+				this.status = 'IN-PROCESS'
 			}
 		}
 	}
@@ -624,19 +615,15 @@ export default class Task {
 	 * @param {boolean} completed True if status is complete. False otherwise
 	 */
 	setCompleted(completed) {
-		if (completed) {
-			this.toDoComponent.updatePropertyWithValue('completed', dateFactory())
-		} else {
-			this.toDoComponent.deleteAllProperties('completed')
-		}
-		this.updateLastModified()
-		this._completedDate = this.toDoComponent.getFirstPropertyFirstValue('completed')
-		this._completed = !!this._completedDate
+		this.toDoComponent.completedTime = completed ? dateFactory() : null
+		this.toDoComponent.undirtify()
+		this._completedTime = this.toDoComponent.completedTime
+		this._completed = !!this._completedTime
 	}
 
 	/** @type {DateTimeValue} */
 	get completedDate() {
-		return this._completedDate
+		return this._completedTime
 	}
 
 	/** @type {string} */
@@ -653,17 +640,17 @@ export default class Task {
 	set status(status) {
 		this.setStatus(status)
 		if (status === 'COMPLETED') {
-			this.setComplete(100)
+			this.setPercent(100)
 			this.setCompleted(true)
 		} else if (status === 'IN-PROCESS') {
 			this.setCompleted(false)
 			if (this.complete === 100) {
-				this.setComplete(99)
+				this.setPercent(99)
 			} else if (this.complete === 0) {
-				this.setComplete(1)
+				this.setPercent(1)
 			}
 		} else if (status === 'NEEDS-ACTION' || status === null) {
-			this.setComplete(0)
+			this.setPercent(null)
 			this.setCompleted(false)
 		}
 	}
@@ -671,20 +658,14 @@ export default class Task {
 	/**
 	 * Set the status of the task
 	 *
-	 * @todo verify status is valid before setting
+	 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.11
 	 *
 	 * @param {string} status from ToDo
-	 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.11
 	 * @memberof Task
 	 */
 	setStatus(status) {
-		if (status === null) {
-			this.toDoComponent.deleteAllProperties('status')
-		} else {
-			this.toDoComponent.updatePropertyWithValue('status', status)
-		}
-		this.updateLastModified()
-		this._status = this.toDoComponent.getFirstPropertyFirstValue('status')
+		this.toDoComponent.status = status
+		this._status = this.toDoComponent.status
 	}
 
 	/** @type {string} */
@@ -694,13 +675,13 @@ export default class Task {
 
 	/** @type {string} */
 	set note(note) {
-		// @todo is this comment still valid? check
-		// To avoid inconsistent property parameters (bug #3863 in nextcloud/calendar), delete the property, then recreate
+		// TODO: is this comment still valid? check
+		// To avoid inconsistent property parameters (bug #3863 in
+		// nextcloud / calendar), delete the property, then recreate
 		// this.toDoComponent.deleteAllProperties('description')
-
-		this.toDoComponent.updatePropertyWithValue('description', note)
-		this.updateLastModified()
-		this._note = this.toDoComponent.getFirstPropertyFirstValue('description') || ''
+		this.toDoComponent.description = note
+		this.toDoComponent.undirtify()
+		this._note = this.toDoComponent.description
 	}
 
 	/** @type {string} */
@@ -722,6 +703,7 @@ export default class Task {
 				this.toDoComponent.addRelation('PARENT', related)
 			}
 		}
+		this.toDoComponent.undirtify()
 		this._related = this.getParent()?.relatedId || null
 	}
 
@@ -750,7 +732,7 @@ export default class Task {
 		} else {
 			this.toDoComponent.deleteAllProperties('x-pinned')
 		}
-		this.updateLastModified()
+		this.toDoComponent.undirtify()
 		this._pinned = this.toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true'
 	}
 
@@ -762,7 +744,7 @@ export default class Task {
 	/** @type {boolean} */
 	set hideSubtasks(hide) {
 		this.toDoComponent.updatePropertyWithValue('x-oc-hidesubtasks', +hide)
-		this.updateLastModified()
+		this.toDoComponent.undirtify()
 		this._hideSubtasks = +this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0
 	}
 
@@ -774,7 +756,7 @@ export default class Task {
 	/** @type {boolean} */
 	set hideCompletedSubtasks(hide) {
 		this.toDoComponent.updatePropertyWithValue('x-oc-hidecompletedsubtasks', +hide)
-		this.updateLastModified()
+		this.toDoComponent.undirtify()
 		this._hideCompletedSubtasks = +this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0
 	}
 
@@ -785,13 +767,9 @@ export default class Task {
 
 	/** @type {DateTimeValue|string} */
 	set start(start) {
-		if (start) {
-			this.toDoComponent.updatePropertyWithValue('dtstart', start)
-		} else {
-			this.toDoComponent.deleteAllProperties('dtstart')
-		}
-		this.updateLastModified()
-		this._startDate = this.toDoComponent.getFirstPropertyFirstValue('dtstart')
+		this.toDoComponent.startDate = start
+		this.toDoComponent.undirtify()
+		this._startDate = this.toDoComponent.startDate
 		this._startMoment = getMomentFromDateTimeValue(this._startDate)
 		this._allDay = this.toDoComponent.isAllDay()
 	}
@@ -812,20 +790,15 @@ export default class Task {
 	 * @todo fix date<->datetime
 	 */
 	set due(due) {
-		if (due) {
-			this.toDoComponent.addPropertyWithValue('due', this._due)
-		} else {
-			this.toDoComponent.deleteAllProperties('due')
-		}
-		this.updateLastModified()
+		this.toDoComponent.dueTime = due
+		this.toDoComponent.undirtify()
 		this._due = this.toDoComponent.dueTime
-		this._dueMoment = getMomentFromDateTimeValue(this._due)
 		this._allDay = this.toDoComponent.isAllDay()
 	}
 
 	/** @type {string} */
 	get dueMoment() {
-		return this._dueMoment
+		return this._dueMoment?.clone() || getMomentFromDateTimeValue(this._due)
 	}
 
 	/** @type {boolean} */
@@ -835,19 +808,17 @@ export default class Task {
 
 	/** @type {boolean} */
 	set allDay(allDay) {
-		let start = this.toDoComponent.getFirstPropertyFirstValue('dtstart')
+		const start = this.toDoComponent.startDate
 		if (start) {
 			start.isDate = allDay
-			this.toDoComponent.updatePropertyWithValue('dtstart', start)
+			this.toDoComponent.startDate = start
 		}
-		let due = this.toDoComponent.getFirstPropertyFirstValue('due')
+		const due = this.toDoComponent.dueTime
 		if (due) {
 			due.isDate = allDay
-			this.toDoComponent.updatePropertyWithValue('due', due)
+			this.toDoComponent.dueTime = due
 		}
-		this.updateLastModified()
-		start = this.toDoComponent.getFirstPropertyFirstValue('dtstart')
-		due = this.toDoComponent.getFirstPropertyFirstValue('due')
+		this.toDoComponent.undirtify()
 		this._allDay = this.toDoComponent.isAllDay()
 	}
 
@@ -903,20 +874,8 @@ export default class Task {
 		} else {
 			this.toDoComponent.clearAllCategories()
 		}
+		this.toDoComponent.undirtify()
 		this._tags = this.getTags()
-	}
-
-	/**
-	 * Update the last modified date of the task
-	 *
-	 * @todo check/set dirtiness?
-	 */
-	updateLastModified() {
-		const now = dateFactory()
-		this.toDoComponent.updatePropertyWithValue('last-modified', now)
-		this.toDoComponent.updatePropertyWithValue('dtstamp', now)
-		this._modified = now
-		this._modifiedMoment = getMomentFromDateTimeValue(this._modified)
 	}
 
 	/** @type {DateTimeValue} */
@@ -937,14 +896,13 @@ export default class Task {
 	/** @type {DateTimeValue|string} */
 	set created(createdDate) {
 		if (createdDate !== null) {
-			this.toDoComponent.updatePropertyWithValue('created', createdDate)
+			this.toDoComponent.creationTime = createdDate
 			this._createdMoment = getMomentFromDateTimeValue(this._created)
 		} else {
-			this.toDoComponent.updatePropertyWithValue('created', dateFactory())
+			this.toDoComponent.creationTime = dateFactory
 		}
-
-		this.updateLastModified()
-		this._created = this.toDoComponent.getFirstPropertyFirstValue('created')
+		this.toDoComponent.undirtify()
+		this._created = this.toDoComponent.creationTime
 		// Update the sortorder if necessary
 		if (this.toDoComponent.getFirstPropertyFirstValue('x-apple-sort-order') === null) {
 			this._sortOrder = this.getSortOrder()
@@ -958,18 +916,14 @@ export default class Task {
 
 	/** @type {string} */
 	get class() {
-		return this._class
+		return this._accessClass
 	}
 
 	/** @type {string} */
 	set class(classification) {
-		if (classification) {
-			this.toDoComponent.updatePropertyWithValue('class', classification)
-		} else {
-			this.toDoComponent.deleteAllProperties('class')
-		}
-		this.updateLastModified()
-		this._class = this.toDoComponent.getFirstPropertyFirstValue('class') || 'PUBLIC'
+		this.toDoComponent.accessClass = classification
+		this.toDoComponent.undirtify()
+		this._accessClass = this.toDoComponent.accessClass
 	}
 
 	/** @type {number} */
@@ -988,7 +942,7 @@ export default class Task {
 		} else {
 			this.toDoComponent.updatePropertyWithValue('x-apple-sort-order', sortOrder)
 		}
-		this.updateLastModified()
+		this.toDoComponent.undirtify()
 		this._sortOrder = sortOrder
 	}
 
