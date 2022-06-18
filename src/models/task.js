@@ -30,18 +30,18 @@
 
 import PQueue from 'p-queue'
 import {
-	DateTimeValue,
-	DurationValue,
-	RecurValue,
-	getParserManager,
-	ICalendarParser,
-	Property,
-	RelationProperty,
-	ToDoComponent,
+	DateTimeValue, DurationValue, RecurValue,
+	getParserManager, ICalendarParser, ToDoComponent, RelationProperty,
 } from '@nextcloud/calendar-js'
 
-import { dateFactory, getUnixTimestampFromDate, getDateFromDateTimeValue, getMomentFromDateTimeValue } from '../utils/date.js'
-import { getFirstTodoFromCalendarComponent, mapToDoComponentToTaskObject } from '../utils/task.js'
+import {
+	dateFactory, getUnixTimestampFromDate,
+	getDateFromDateTimeValue, getMomentFromDateTimeValue,
+} from '../utils/date.js'
+
+import {
+	getFirstTodoFromCalendarComponent, mapToDoComponentToTaskObject,
+} from '../utils/task.js'
 
 import SyncStatus from './syncStatus.js'
 
@@ -713,14 +713,13 @@ export default class Task {
 			if (related) {
 				parent.relatedId = related
 			} else {
-				this.toDoComponent.deleteProperty(parent)
+				this.toDoComponent.removeRelation(parent)
 			}
 		} else {
 			if (related) {
-				this.toDoComponent.addProperty(RelationProperty.fromRelTypeAndId('PARENT', related))
+				this.toDoComponent.addRelation('PARENT', related)
 			}
 		}
-		this.updateLastModified()
 		this._related = this.getParent()?.relatedId || null
 	}
 
@@ -895,14 +894,13 @@ export default class Task {
 	/** @type {string[]} */
 	set tags(newTags) {
 		if (newTags.length > 0) {
-			this.toDoComponent.deleteAllProperties('categories')
+			this.toDoComponent.clearAllCategories()
 			for (const t of newTags) {
-				this.toDoComponent.addProperty(new Property('categories', t))
+				this.toDoComponent.addCategory(t)
 			}
 		} else {
-			this.toDoComponent.deleteAllProperties('categories')
+			this.toDoComponent.clearAllCategories()
 		}
-		this.updateLastModified()
 		this._tags = this.getTags()
 	}
 
