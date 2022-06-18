@@ -468,9 +468,7 @@ export default class Task {
 		parser.parse(jCal)
 		const calendarComponentIterator = parser.getItemIterator()
 		const calendarComponent = calendarComponentIterator.next().value
-
 		const object = getFirstTodoFromCalendarComponent(calendarComponent)
-
 		this.toDoComponent = mapToDoComponentToTaskObject(object)
 	}
 
@@ -730,7 +728,7 @@ export default class Task {
 	/**
 	 * Returns the first parent of the task.
 	 *
-	 * @return {string} The first parent of the task
+	 * @return {RelationProperty} The first parent of the task
 	 */
 	getParent() {
 		const related = this.toDoComponent.getRelationList()
@@ -888,7 +886,7 @@ export default class Task {
 	 * Return the tags/categories of the task
 	 *
 	 * @return {Array<string>}
-	 * @readonly
+	 *
 	 * @memberof Task
 	 */
 	getTags() {
@@ -1004,7 +1002,8 @@ export default class Task {
 		if (this._created === null) {
 			return 0
 		}
-		return getUnixTimestampFromDate(getDateFromDateTimeValue(this._created)) - getUnixTimestampFromDate(Date('2001-01-01T00:00:00'))
+		return getUnixTimestampFromDate(getDateFromDateTimeValue(this._created))
+			- getUnixTimestampFromDate(Date('2001-01-01T00:00:00'))
 	}
 
 	/**
