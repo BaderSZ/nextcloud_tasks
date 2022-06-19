@@ -29,6 +29,8 @@
  */
 
 import PQueue from 'p-queue'
+import ICAL from 'ical.js'
+
 import {
 	DateTimeValue, DurationValue, RecurValue,
 	getParserManager, ICalendarParser, ToDoComponent, RelationProperty,
@@ -39,9 +41,7 @@ import {
 	getDateFromDateTimeValue, getMomentFromDateTimeValue,
 } from '../utils/date.js'
 
-import {
-	getFirstTodoFromCalendarComponent, mapToDoComponentToTaskObject,
-} from '../utils/task.js'
+import { getFirstTodoFromCalendarComponent } from '../utils/task.js'
 
 import SyncStatus from './syncStatus.js'
 
@@ -65,6 +65,8 @@ export default class Task {
 	 * @memberof Task
 	 */
 	constructor(vcalendar, calendar) {
+		const jCal = ICAL.parse(vcalendar)
+		this.jCal = jCal
 		const parserManager = getParserManager()
 		const parser = parserManager.getParserForFileType('text/calendar', {
 			preserveMethod: true,
@@ -455,21 +457,14 @@ export default class Task {
 	/**
 	 * Update internal data of this task
 	 *
-	 * @param {jCal} jCal jCal object from ICAL.js
+	 * @param {string} jCalString  stringified ICAL.js object
 	 * @memberof Task
 	 */
-	updateTask(jCal) {
-		const parserManager = getParserManager()
-		const parser = parserManager.getParserForFileType('text/calendar', {
-			preserveMethod: true,
-			processFreeBusy: true,
-		})
-
-		parser.parse(jCal)
-		const calendarComponentIterator = parser.getItemIterator()
-		const calendarComponent = calendarComponentIterator.next().value
-		const object = getFirstTodoFromCalendarComponent(calendarComponent)
-		this.toDoComponent = mapToDoComponentToTaskObject(object)
+	updateTask(jCalString) {
+		const jCal = ICAL.Component.fromString(jCalString)
+		this.jCal = jCal
+		this.toDoComponent = ToDoComponent.fromICALJs(jCal)
+		this.initTodo()
 	}
 
 	/**

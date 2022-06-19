@@ -27,7 +27,7 @@ import {
 	COMPONENT_NAME_VTODO,
 } from './consts.js'
 
-import { CalendarComponent, getParserManager } from '@nextcloud/calendar-js'
+import { getParserManager } from '@nextcloud/calendar-js'
 
 /**
  * Creates a complete calendar-object-object based on given props
@@ -86,12 +86,22 @@ const mapCDavObjectToCalendarObject = (dav, calendarId) => {
 	const vObjectIterator = calendarComponent.getVObjectIterator()
 	const firstVObject = vObjectIterator.next().value
 
+	// Find the parent id if any
+	let parent = null
+	for (const rel of firstVObject.getRelationIterator()) {
+		if (rel.relationType === 'PARENT') {
+			parent = rel.relatedId
+			break
+		}
+	}
+
 	return getDefaultCalendarObjectObject({
 		id: btoa(dav.url),
 		calendarId,
 		dav,
 		calendarComponent,
 		uid: firstVObject.uid,
+		parent,
 		uri: dav.url,
 		objectType: firstVObject.name,
 		isEvent: firstVObject.name === COMPONENT_NAME_EVENT,
@@ -101,32 +111,7 @@ const mapCDavObjectToCalendarObject = (dav, calendarId) => {
 	})
 }
 
-/**
- * Maps a calendar-component from calendar-js to our calendar-object object
- *
- * @param {CalendarComponent} calendarComponent The calendarComponent to create the calendarObject from
- * @param {string=} calendarId The associated calendar if applicable
- * @return {object}
- */
-const mapCalendarJsToCalendarObject = (calendarComponent, calendarId = null) => {
-	const vObjectIterator = calendarComponent.getVObjectIterator()
-	const firstVObject = vObjectIterator.next().value
-	if (!firstVObject) {
-		throw new Error('Calendar object without vobjects')
-	}
-
-	return getDefaultCalendarObjectObject({
-		calendarId,
-		calendarComponent,
-		uid: firstVObject.uid,
-		objectType: firstVObject.name,
-		isEvent: firstVObject.name === COMPONENT_NAME_EVENT,
-		isJournal: firstVObject.name === COMPONENT_NAME_JOURNAL,
-		isTodo: firstVObject.name === COMPONENT_NAME_VTODO,
-	})
-}
 export {
 	getDefaultCalendarObjectObject,
 	mapCDavObjectToCalendarObject,
-	mapCalendarJsToCalendarObject,
 }

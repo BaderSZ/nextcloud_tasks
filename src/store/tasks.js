@@ -920,10 +920,9 @@ const actions = {
 			return
 		}
 
-		const vCalendar = ICAL.stringify(task.jCal)
-
+		const jCalString = task.toDoComponent.toICALJs().toString()
 		if (!task.conflict) {
-			task.dav.data = vCalendar
+			task.dav.data = jCalString
 			task.syncStatus = new SyncStatus('sync', t('tasks', 'Synchronizing to the server.'))
 			return task.dav.update()
 				.then((response) => {
