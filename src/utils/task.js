@@ -26,11 +26,6 @@
 
 import { CalendarComponent, ToDoComponent } from '@nextcloud/calendar-js'
 
-import {
-	// mapRecurrenceRuleValueToRecurrenceRuleObject,
-	getDefaultRecurrenceRuleObject,
-} from '../models/recurrenceRule.js'
-
 /**
  * Creates a complete TaskObject based on given props
  * Based off of '@nextcloud/calendar/src/models/calendarObject.js'
@@ -38,72 +33,72 @@ import {
  * @param {object} props The props already provided
  * @return {object}
  */
-const getDefaultTaskObject = (props = {}) => Object.assign({}, {
+const getDefaultTaskObjectObject = (props = {}) => Object.assign({}, {
 	// The real task-component coming from calendar-js
 	toDoComponent: null,
 	// Unique ID of the task
-	_uid: '',
+	uid: '',
 	// Title/Summary of the task
-	_summary: '',
+	summary: '',
 	// Priority of the task
-	_priority: 0,
+	priority: 0,
 	// Time when dask was completed
-	_complete: 0,
+	complete: 0,
 	// True if status is complete
-	_completed: false,
+	completed: false,
 	// Notes of the task
-	_note: null,
+	note: null,
 	// Duration of the task
-	_duration: null,
+	duration: null,
 	// Date when task was completed
-	_completedDate: null,
+	completedDate: null,
 	// Status of the task: NEEDS-ACTION, CONFIRMED, IN-PROGRESS, CANCELLED
-	_status: null,
+	status: null,
 	// Relative of Task
-	_related: null,
-	// hide subtasks
-	_hideSubtasks: false,
-	// Hide completed subtasks
-	_hideCompletedSubtasks: true,
+	related: null,
+	// // hide subtasks
+	hideSubtasks: false,
+	// // Hide completed subtasks
+	hideCompletedSubtasks: true,
 	// Start date of the task
-	_startDate: null,
+	start: null,
 	// Due date date of the task
-	_due: null,
+	due: null,
 	// Is an all-day Task
-	_isAllDay: false,
+	isAllDay: false,
 	// Has task been loaded?
-	_loaded: false,
+	loaded: false,
 	// Tags of the task
-	_tags: [],
+	tags: [],
 	// Date Last Modified
-	_modified: null,
+	modified: null,
 	// Date created
-	_created: null,
-	// Access class of task
-	_class: null,
-	// Is task pinned?
-	_pinned: false,
-	// sort Order of task
-	_sortOrder: 1,
-	// search query
-	_searchQuery: '',
-	// matches search status
-	_matchesSearchQuery: true,
-	// is Master Item of recurring
-	_isMasterItem: false,
-	// location of task
-	_location: null,
-	// is modifiable?
-	_canModifyAllDay: null,
-	// recurrence rule of task
-	_recurrenceRule: getDefaultRecurrenceRuleObject(),
-	// is task recurring
-	_isRecurring: null,
-	// is task an exception?
-	_isRecurrenceException: null,
-	// can create exception?
-	_canCreateRecurrenceException: null,
-})
+	created: null,
+	// // Access class of task
+	// class: null,
+	// // Is task pinned?
+	// pinned: false,
+	// // sort Order of task
+	// sortOrder: 1,
+	// // search query
+	// searchQuery: '',
+	// // matches search status
+	// _matchesSearchQuery: true,
+	// // is Master Item of recurring
+	// _isMasterItem: false,
+	// // location of task
+	// _location: null,
+	// // is modifiable?
+	// _canModifyAllDay: null,
+	// // recurrence rule of task
+	// _recurrenceRule: getDefaultRecurrenceRuleObject(),
+	// // is task recurring
+	// _isRecurring: null,
+	// // is task an exception?
+	// _isRecurrenceException: null,
+	// // can create exception?
+	// _canCreateRecurrenceException: null,
+}, props)
 
 /**
  * Extracts the first object from the calendar-component
@@ -128,40 +123,39 @@ const getFirstTodoFromCalendarComponent = (calendarComponent) => {
  * @return {object} Task Object
  */
 const mapToDoComponentToTaskObject = (toDoComponent) => {
-	const toDoObject = getDefaultTaskObject({
+	return getDefaultTaskObjectObject({
 
-		toDoComponent: getDefaultTaskObject(),
-		_uid: toDoComponent.uid || '',
-		_summary: toDoComponent.title || '',
-		_priority: toDoComponent.priority || 0,
-		_complete: toDoComponent.percent || 0,
-		_completed: toDoComponent.completed,
-		_note: toDoComponent.description || null,
-		_duration: toDoComponent.duration || null,
-		_completedDate: toDoComponent.getFirstPropertyFirstValue('completed') || null,
-		_status: toDoComponent.status,
-		_related: toDoComponent.getRelationList()[0] !== undefined && toDoComponent.getRelationList()[0].relationType === 'PARENT' ? toDoComponent.getRelationList()[0].relatedId : null,
-		_hideSubtasks: toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0,
-		_hideCompletedSubtasks: toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0,
-		_startDate: toDoComponent.getFirstPropertyFirstValue('dtstart'),
-		_due: toDoComponent.getFirstPropertyFirstValue('due'),
-		_isAllDay: toDoComponent.isAllDay(),
-		_loaded: false,
-		_tags: [], // TODO
-		_modified: toDoComponent.getFirstPropertyFirstValue('last-modified'),
-		_created: toDoComponent.creationTime,
-		_class: toDoComponent._class,
-		_pinned: toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true',
-		_sortOrder: 1, // TODO
-		_searchQuery: '',
-		_matchesSearchQuery: true,
-		_isMasterItem: toDoComponent.isMasterItem(),
-		_location: toDoComponent.location,
-		_canModifyAllDay: toDoComponent.canModifyAllDay(),
-		_recurrenceRule: null, // TODO
-		_isRecurring: toDoComponent.isRecurring(),
-		_isRecurrenceException: toDoComponent.isRecurrenceException(),
-		_canCreateRecurrenceException: toDoComponent.canCreateRecurrenceExceptions(),
+		toDoComponent,
+		uid: toDoComponent.uid || '',
+		summary: toDoComponent.title || '',
+		priority: toDoComponent.priority || 0,
+		complete: toDoComponent.percent || 0,
+		completed: !!toDoComponent.completedTime,
+		note: toDoComponent.description || null,
+		duration: toDoComponent.duration || null,
+		completedDate: toDoComponent.completedTime || null,
+		status: toDoComponent.status,
+		related: toDoComponent.getRelationList()[0] !== undefined && toDoComponent.getRelationList()[0].relationType === 'PARENT' ? toDoComponent.getRelationList()[0].relatedId : null,
+		hideSubtasks: toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0,
+		hideCompletedSubtasks: toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0,
+		startDate: toDoComponent.startDate,
+		due: toDoComponent.dueTime,
+		isAllDay: toDoComponent.isAllDay(),
+		loaded: false,
+		tags: toDoComponent.accessClass, // TODO
+		modified: toDoComponent.modificationTime,
+		created: toDoComponent.creationTime,
+		class: toDoComponent.accessClass,
+		pinned: toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true',
+		sortOrder: 1, // TODO
+		searchQuery: '',
+		matchesSearchQuery: true,
+		location: toDoComponent.location,
+		canModifyAllDay: toDoComponent.canModifyAllDay(),
+		recurrenceRule: null, // TODO
+		isRecurring: toDoComponent.isRecurring(),
+		isRecurrenceException: toDoComponent.isRecurrenceException(),
+		canCreateRecurrenceException: toDoComponent.canCreateRecurrenceExceptions(),
 	})
 
 	/**
@@ -217,8 +211,6 @@ const mapToDoComponentToTaskObject = (toDoComponent) => {
 	// toDoObject.recurrenceRule = mapRecurrenceRuleValueToRecurrenceRuleObject(firstRecurrenceRule.getFirstValue(), toDoComponent.startDate)
 	// toDoObject.hasMultipleRRules = !recurrenceRuleIterator.next().done
 	// }
-
-	return toDoObject
 }
 
-export { CalendarComponent, getDefaultTaskObject, getFirstTodoFromCalendarComponent, mapToDoComponentToTaskObject }
+export { CalendarComponent, getDefaultTaskObjectObject, getFirstTodoFromCalendarComponent, mapToDoComponentToTaskObject }
