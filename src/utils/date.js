@@ -19,7 +19,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
-import logger from './logger.js'
+
 import { DateTimeValue } from '@nextcloud/calendar-js'
 import moment from '@nextcloud/moment'
 
@@ -55,46 +55,6 @@ export function getUnixTimestampFromDate(date) {
 }
 
 /**
- * Gets a Date-object based on the firstday param used in routes
- *
- * @param {string} firstDayParam The firstday param from the router
- * @return {Date}
- */
-export function getDateFromFirstdayParam(firstDayParam) {
-	if (firstDayParam === 'now') {
-		return dateFactory()
-	}
-
-	const [year, month, date] = firstDayParam.split('-')
-		.map((str) => parseInt(str, 10))
-
-	if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(date)) {
-		logger.error('First day parameter contains non-numerical components, falling back to today')
-		return dateFactory()
-	}
-
-	const dateObject = dateFactory()
-	dateObject.setFullYear(year, month - 1, date)
-	dateObject.setHours(0, 0, 0, 0)
-
-	return dateObject
-}
-
-/**
- * formats firstday param as YYYYMMDD
- *
- * @param {string} firstDayParam The firstday param from the router
- * @return {string}
- */
-export function getYYYYMMDDFromFirstdayParam(firstDayParam) {
-	if (firstDayParam === 'now') {
-		return getYYYYMMDDFromDate(dateFactory())
-	}
-
-	return firstDayParam
-}
-
-/**
  * Gets a date object based on the given DateTimeValue
  * Ignores given timezone-information
  *
@@ -123,5 +83,3 @@ export function getMomentFromDateTimeValue(dateTimeValue) {
 	const jsDate = dateTimeValue?.jsDate
 	return moment(jsDate, 'YYYYMMDDTHHmmss')
 }
-
-export { moment }
