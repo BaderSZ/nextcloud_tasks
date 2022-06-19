@@ -29,7 +29,6 @@ import Task from '../models/task.js'
 
 import moment from '@nextcloud/moment'
 
-import ICAL from 'ical.js'
 import { DateTimeValue } from '@nextcloud/calendar-js'
 
 /**
@@ -420,17 +419,6 @@ function sortBySortOrder(taskA, taskB) {
 }
 
 /**
- * Function to convert a moment to a ICAL Time
- *
- * @param {moment} moment The moment to convert
- * @param {boolean} asDate Is the moment all day
- * @return {ICAL.Time}
- */
-function momentToICALTime(moment, asDate) {
-	return ICAL.Time.fromDateTimeString(moment.format('YYYY-MM-DDTHH:mm:ss'))
-}
-
-/**
  * Convert a moment to JS Date
  *
  * @param {moment} moment formatted date-time value
@@ -461,7 +449,6 @@ export {
 	overdue,
 	isParentInList,
 	sort,
-	momentToICALTime,
 	momentToJSDateTime,
 	searchSubTasks,
 }
