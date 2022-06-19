@@ -23,7 +23,7 @@
 
 import { Calendar } from './calendars.js'
 import { findVTODObyUid } from './cdav-requests.js'
-import { isParentInList, momentToICALTime } from './storeHelper.js'
+import { isParentInList, momentToJSDateTime } from './storeHelper.js'
 import SyncStatus from '../models/syncStatus.js'
 import Task from '../models/task.js'
 import router from '../router.js'
@@ -544,10 +544,10 @@ const mutations = {
 				} else {
 					start = due.clone()
 				}
-				Vue.set(task, 'start', momentToICALTime(start, allDay))
+				Vue.set(task, 'start', momentToJSDateTime(start))
 			}
 			// Set the due date, convert it to ICALTime first.
-			Vue.set(task, 'due', momentToICALTime(due, allDay))
+			Vue.set(task, 'due', momentToJSDateTime(due))
 		}
 	},
 
@@ -575,10 +575,10 @@ const mutations = {
 				} else {
 					due = start.clone()
 				}
-				Vue.set(task, 'due', momentToICALTime(due, allDay))
+				Vue.set(task, 'due', momentToJSDateTime(due, allDay))
 			}
 			// Set the due date, convert it to ICALTime first.
-			Vue.set(task, 'start', momentToICALTime(start, allDay))
+			Vue.set(task, 'start', momentToJSDateTime(start, allDay))
 		}
 	},
 
