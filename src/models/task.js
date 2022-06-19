@@ -215,12 +215,12 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._completedTime = this.toDoComponent.completedDate
+		this._completedDate = this.toDoComponent.completedDate
 
 		/**
 		 * @todo
 		 */
-		this._completedDateMoment = getMomentFromDateTimeValue(this._completedTime) || null
+		this._completedDateMoment = getMomentFromDateTimeValue(this._completedDate) || null
 
 		/**
 		 * status of the task. Valid results include:
@@ -610,15 +610,15 @@ export default class Task {
 	 * @param {boolean} completed True if status is complete. False otherwise
 	 */
 	setCompleted(completed) {
-		this.toDoComponent.completedTime = completed ? dateFactory() : null
+		this.toDoComponent.completedDate = completed ? dateFactory() : null
 		this.toDoComponent.undirtify()
-		this._completedTime = this.toDoComponent.completedTime
-		this._completed = !!this._completedTime
+		this._completedDate = this.toDoComponent.completedDate
+		this._completed = !!this._completedDate
 	}
 
 	/** @type {DateTimeValue} */
 	get completedDate() {
-		return this._completedTime
+		return this._completedDate
 	}
 
 	/** @type {string} */
@@ -794,7 +794,7 @@ export default class Task {
 
 	/** @type {string} */
 	get dueMoment() {
-		return this._dueMoment?.clone() || getMomentFromDateTimeValue(this._due)
+		return getMomentFromDateTimeValue(this._due)
 	}
 
 	/** @type {boolean} */
