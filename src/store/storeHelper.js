@@ -431,9 +431,10 @@ function momentToICALTime(moment, asDate) {
 }
 
 /**
- * Convert a mometn to JS Date
+ * Convert a moment to JS Date
+ *
  * @param {moment} moment formatted date-time value
- * @returns {Date} Date.JS formatted string
+ * @return {Date} Date.JS formatted string
  */
 function momentToJSDateTime(moment) {
 	return DateTimeValue.fromJSDate(moment.toDate())
