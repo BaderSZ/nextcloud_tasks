@@ -477,14 +477,22 @@ export default class Task {
 		this.calendar = calendar
 	}
 
-	/** @type {string} */
+	/**
+	 * Return the key
+	 *
+	 * @readonly
+	 * @memberof Task
+	 * @type {string}
+	 */
 	get key() {
 		return this.uid + '~' + this.calendar.id
 	}
 
 	/**
-	 * DAV URL of the task
+	 * Return the url
 	 *
+	 * @readonly
+	 * @memberof Task
 	 * @type {string}
 	 */
 	get url() {
@@ -495,9 +503,11 @@ export default class Task {
 	}
 
 	/**
-	 * DAV URI of the task
+	 * Return the uri
 	 *
-	 *  @type {string}
+	 * @readonly
+	 * @memberof Task
+	 * @type {string}
 	 */
 	get uri() {
 		if (this.dav) {
@@ -507,27 +517,45 @@ export default class Task {
 	}
 
 	/**
-	 * UID of the task
+	 * Return the uid
 	 *
+	 * @readonly
+	 * @memberof Task
 	 * @type {string}
 	 */
 	get uid() {
 		return this._uid
 	}
 
-	/** @type {string} */
+	/**
+	 * Set the uid
+	 *
+	 * @type {string} uid the uid to set
+	 * @memberof Task
+	 */
 	set uid(uid) {
 		this.toDoComponent.uid = uid
 		this.toDoComponent.undirtify()
 		this._uid = this.toDoComponent.uid
 	}
 
-	/** @type {string} */
+	/**
+	 * Return the first summary
+	 *
+	 * @readonly
+	 * @memberof Task
+	 * @type {string}
+	 */
 	get summary() {
 		return this._summary
 	}
 
-	/** @type {string} */
+	/**
+	 * Set the summary
+	 *
+	 * @type {string} summary short text summary
+	 * @memberof Task
+	 */
 	set summary(summary) {
 		this.toDoComponent.summary = summary
 		this.toDoComponent.undirtify()
@@ -844,7 +872,13 @@ export default class Task {
 		return null
 	}
 
-	/** @type {string[]} */
+	/**
+	 * Return the tags
+	 *
+	 * @type {string[]}
+	 * @readonly
+	 * @memberof Task
+	 */
 	get tags() {
 		return this._tags
 	}
@@ -860,7 +894,12 @@ export default class Task {
 		return Array.from(this.toDoComponent.getCategoryIterator())
 	}
 
-	/** @type {string[]} */
+	/**
+	 * Set the tags
+	 *
+	 * @type {string[]} newTags The tags
+	 * @memberof Task
+	 */
 	set tags(newTags) {
 		if (newTags.length > 0) {
 			this.toDoComponent.clearAllCategories()
