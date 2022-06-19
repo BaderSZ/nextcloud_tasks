@@ -262,14 +262,14 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._startDate = this.toDoComponent.startDate
+		this._startTime = this.toDoComponent.startDate
 
 		/**
 		 * Start moment
 		 *
 		 * @type {moment|null}
 		 */
-		this._startMoment = getMomentFromDateTimeValue(this._startDate)
+		this._startTimeMoment = getMomentFromDateTimeValue(this._startTime)
 
 		/**
 		 * Expected due date of the task
@@ -763,21 +763,21 @@ export default class Task {
 
 	/** @type {DateTimeValue} */
 	get start() {
-		return this._startDate
+		return this._startTime
 	}
 
 	/** @type {DateTimeValue|string} */
 	set start(start) {
 		this.toDoComponent.startDate = start
 		this.toDoComponent.undirtify()
-		this._startDate = this.toDoComponent.startDate
-		this._startMoment = getMomentFromDateTimeValue(this._startDate)
+		this._startTime = this.toDoComponent.startDate
+		this._startTimeMoment = getMomentFromDateTimeValue(this._startTime)
 		this._allDay = this.toDoComponent.isAllDay()
 	}
 
 	/** @type {string} */
 	get startMoment() {
-		return this._startMoment?.clone() || getMomentFromDateTimeValue(this._start)
+		return getMomentFromDateTimeValue(this._startTime)
 	}
 
 	/** @type {DateTimeValue} */
