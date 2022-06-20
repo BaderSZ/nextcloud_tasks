@@ -557,9 +557,9 @@ export default class Task {
 	 * @memberof Task
 	 */
 	set summary(summary) {
-		this.toDoComponent.summary = summary
+		this.toDoComponent.title = summary
 		this.toDoComponent.undirtify()
-		this._summary = this.toDoComponent.summary
+		this._summary = this.toDoComponent.title
 	}
 
 	/** @type {number} */
