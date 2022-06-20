@@ -95,63 +95,6 @@ export default class Task {
 		 */
 		this.toDoComponent = getFirstTodoFromCalendarComponent(calendarComponent)
 
-		this.initTodo()
-
-		/**
-		 * @type {object}
-		 */
-		this.calendar = calendar
-
-		/**
-		 * @name Task#subTasks
-		 * @type {object}
-		 */
-		this.subTasks = {}
-
-		/**
-		 * Used to state a task is not up to date with the server
-		 * and cannot be pushed (etag).
-		 *
-		 * @name Task#conflict
-		 * @type {boolean}
-		 */
-		this.conflict = false
-
-		/**
-		 * Task's sync status
-		 *
-		 * @name Task#syncStatus
-		 * @type {SyncStatus|null}
-		 */
-		this.syncStatus = null
-
-		/**
-		 * Time in seconds before the task is going to be deleted.
-		 *
-		 * @name Task#deleteCountdown
-		 * @type {number|null}
-		 */
-		this.deleteCountdown = null
-
-		/**
-		 * Queue for update requests with concurrency 1, because
-		 * we only want to allow one request at a time (otherwise
-		 * we will run into problems with changed ETags).
-		 *
-		 * @type {PQueue}
-		 */
-		this.updateQueue = new PQueue({ concurrency: 1 })
-	}
-
-	/**
-	 * Initialize task from ToDoComponent object
-	 *
-	 * @todo remove function and place this in constructor?
-	 * @private
-	 */
-	initTodo() {
-		// Define properties, so Vue reacts to changes of them
-
 		/**
 		 * The unique ID of the task
 		 *
@@ -452,6 +395,50 @@ export default class Task {
 		 * @type {boolean}
 		 */
 		this._canCreateRecurrenceException = this.toDoComponent.canCreateRecurrenceExceptions()
+		/**
+		 * @type {object}
+		 */
+		this.calendar = calendar
+
+		/**
+		 * @name Task#subTasks
+		 * @type {object}
+		 */
+		this.subTasks = {}
+
+		/**
+		 * Used to state a task is not up to date with the server
+		 * and cannot be pushed (etag).
+		 *
+		 * @name Task#conflict
+		 * @type {boolean}
+		 */
+		this.conflict = false
+
+		/**
+		 * Task's sync status
+		 *
+		 * @name Task#syncStatus
+		 * @type {SyncStatus|null}
+		 */
+		this.syncStatus = null
+
+		/**
+		 * Time in seconds before the task is going to be deleted.
+		 *
+		 * @name Task#deleteCountdown
+		 * @type {number|null}
+		 */
+		this.deleteCountdown = null
+
+		/**
+		 * Queue for update requests with concurrency 1, because
+		 * we only want to allow one request at a time (otherwise
+		 * we will run into problems with changed ETags).
+		 *
+		 * @type {PQueue}
+		 */
+		this.updateQueue = new PQueue({ concurrency: 1 })
 	}
 
 	/**
@@ -464,7 +451,6 @@ export default class Task {
 		const jCal = ICAL.Component.fromString(jCalString)
 		this.jCal = jCal
 		this.toDoComponent = ToDoComponent.fromICALJs(jCal)
-		this.initTodo()
 	}
 
 	/**
