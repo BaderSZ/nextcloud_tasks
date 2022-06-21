@@ -29,17 +29,13 @@
  */
 
 import PQueue from 'p-queue'
-import ICAL from 'ical.js'
 
 import {
 	DateTimeValue, DurationValue, RecurValue,
-	getParserManager, ICalendarParser, ToDoComponent, RelationProperty,
+	getParserManager, ToDoComponent, RelationProperty,
 } from '@nextcloud/calendar-js'
 
-import {
-	dateFactory, getUnixTimestampFromDate,
-	getDateFromDateTimeValue, getMomentFromDateTimeValue,
-} from '../utils/date.js'
+import { getMomentFromDateTimeValue } from '../utils/date.js'
 
 import { getFirstTodoFromCalendarComponent } from '../utils/task.js'
 
@@ -65,22 +61,21 @@ export default class Task {
 	 * @memberof Task
 	 */
 	constructor(vcalendar, calendar) {
-		const jCal = ICAL.parse(vcalendar)
-		this.jCal = jCal
 		const parserManager = getParserManager()
 		const parser = parserManager.getParserForFileType('text/calendar', {
-			preserveMethod: true,
+			// preserveMethod: true,
+			includeTimezones: true,
 		})
 
 		if (typeof vcalendar !== 'string' || vcalendar.length === 0) {
 			throw new Error('Invalid vCalendar')
 		}
 
-		expect(parser instanceof ICalendarParser).toEqual(true)
-
 		parser.parse(vcalendar)
-		const objectIterator = parser.getItemIterator()
-		const calendarComponent = objectIterator.next().value
+
+		// Getting first Item
+		const calendarComponent = parser.getAllItems()[0]
+
 		if (calendarComponent === undefined) {
 			throw new Error('No calendar component found')
 		}
@@ -246,14 +241,14 @@ export default class Task {
 		/**
 		 * Show or hide subtasks of tasks
 		 *
-		 * @type {boolean|0}
+		 * @type {boolean}
 		 */
 		this._hideSubtasks = this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0
 
 		/**
 		 * Show or hide completed subtasks of task
 		 *
-		 * @type {boolean|0}
+		 * @type {boolean}
 		 */
 		this._hideCompletedSubtasks = this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0
 
@@ -301,7 +296,7 @@ export default class Task {
 		/**
 		 * Is this task all-day?
 		 *
-		 * @type {boolean|null}
+		 * @type {boolean}
 		 */
 		this._isAllDay = this.toDoComponent.isAllDay()
 
@@ -375,9 +370,9 @@ export default class Task {
 		}
 
 		/**
-		 * Order/Position of the task (positiven umber)
+		 * Order/Position of the task
 		 *
-		 * @type {number} A positive number
+		 * @type {number} a positive number
 		 */
 		this._sortOrder = +sortOrder
 
@@ -457,13 +452,15 @@ export default class Task {
 	/**
 	 * Update internal data of this task
 	 *
-	 * @param {string} jCalString  stringified ICAL.js object
+	 * @param {string} vcalendar standard ICAL in string form
 	 * @memberof Task
 	 */
-	updateTask(jCalString) {
-		const jCal = ICAL.Component.fromString(jCalString)
-		this.jCal = jCal
-		this.toDoComponent = ToDoComponent.fromICALJs(jCal)
+	updateTask(vcalendar) {
+		if (typeof vcalendar !== 'string' || vcalendar.length === 0) {
+			throw new Error('Invalid vCalendar')
+		}
+		// todo: try/catch ExpectedICalJSError
+		this.toDoComponent = ToDoComponent.fromICALJs(vcalendar)
 		this.initTodo()
 	}
 
@@ -638,7 +635,7 @@ export default class Task {
 	 * @param {boolean} completed True if status is complete. False otherwise
 	 */
 	setCompleted(completed) {
-		this.toDoComponent.completedDate = completed ? dateFactory() : null
+		this.toDoComponent.completedDate = completed ? new DateTimeValue() : null
 		this.toDoComponent.undirtify()
 		this._completedDate = this.toDoComponent.completedDate
 		this._completed = !!this._completedDate
@@ -934,7 +931,7 @@ export default class Task {
 			this.toDoComponent.creationTime = createdDate
 			this._createdMoment = getMomentFromDateTimeValue(this._created)
 		} else {
-			this.toDoComponent.creationTime = dateFactory
+			this.toDoComponent.creationTime = new DateTimeValue()
 		}
 		this.toDoComponent.undirtify()
 		this._created = this.toDoComponent.creationTime
@@ -991,8 +988,15 @@ export default class Task {
 		if (this._created === null) {
 			return 0
 		}
-		return getUnixTimestampFromDate(getDateFromDateTimeValue(this._created))
-			- getUnixTimestampFromDate(Date('2001-01-01T00:00:00'))
+		return this._created.unixTime
+			- DateTimeValue.fromData({
+				year: 2001,
+				month: 1,
+				day: 1,
+				hour: 0,
+				minute: 0,
+				second: 0,
+			}).unixTime
 	}
 
 	/**
@@ -1035,6 +1039,11 @@ export default class Task {
 		}
 		this._matchesSearchQuery = false
 		return this._matchesSearchQuery
+	}
+
+	/** @todo */
+	toICALJsString() {
+		return this.toDoComponent.toICALJs().toString()
 	}
 
 }
