@@ -2,7 +2,7 @@ import Task from 'Models/task.js'
 
 import { loadICS } from '../../../assets/loadAsset.js'
 
-import ICAL from 'ical.js'
+import { DateTimeValue } from '@nextcloud/calendar-js'
 
 describe('task', () => {
 	'use strict'
@@ -146,14 +146,28 @@ describe('task', () => {
 	it('Should not change the sort order, when the created date is changed and x-apple-sort-order is set.', () => {
 		const task = new Task(loadICS('vcalendars/vcalendar-sortOrder1'), {})
 		expect(task.sortOrder).toEqual(1)
-		task.created = ICAL.Time.fromDateTimeString('2018-11-19T18:39:11')
+		task.created = DateTimeValue.fromData({
+			year: 2018,
+			month: 11,
+			day: 19,
+			hour: 18,
+			minute: 39,
+			second: 11,
+		})
 		expect(task.sortOrder).toEqual(1)
 	})
 
 	it('Should update the sort order, when the created date is changed and x-apple-sort-order is not set.', () => {
 		const task = new Task(loadICS('vcalendars/vcalendar-sortOrderByCreated1'), {})
 		expect(task.sortOrder).toEqual(564345550)
-		task.created = ICAL.Time.fromDateTimeString('2018-11-19T18:39:11')
+		task.created = DateTimeValue.fromData({
+			year: 2018,
+			month: 11,
+			day: 19,
+			hour: 18,
+			minute: 39,
+			second: 11,
+		})
 		expect(task.sortOrder).toEqual(564345551)
 	})
 
@@ -244,7 +258,14 @@ describe('task', () => {
 		expect(task.toDoComponent.isDirty()).toEqual(false)
 		task.tags = ['tag 1', 'tag 2']
 		expect(task.toDoComponent.isDirty()).toEqual(false)
-		task.created = ICAL.Time.fromDateTimeString('2018-11-19T18:39:11')
+		task.created = DateTimeValue.fromData({
+			year: 2018,
+			month: 11,
+			day: 19,
+			hour: 18,
+			minute: 39,
+			second: 11,
+		})
 		expect(task.toDoComponent.isDirty()).toEqual(false)
 	})
 
