@@ -24,62 +24,11 @@ import { DateTimeValue } from '@nextcloud/calendar-js'
 import moment from '@nextcloud/moment'
 
 /**
- * returns a new Date object
- *
- * @return {Date}
- */
-export function dateFactory() {
-	return new Date()
-}
-
-/**
- * formats a Date object as YYYYMMDD
- *
- * @param {Date} date Date to format
- * @return {string}
- */
-export function getYYYYMMDDFromDate(date) {
-	return new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
-		.toISOString()
-		.split('T')[0]
-}
-
-/**
- * get unix time from date object
- *
- * @param {Date} date Date to format
- * @return {number}
- */
-export function getUnixTimestampFromDate(date) {
-	return Math.floor(date.getTime() / 1000)
-}
-
-/**
- * Gets a date object based on the given DateTimeValue
- * Ignores given timezone-information
- *
- * @param {DateTimeValue} dateTimeValue Value to get date from
- * @return {Date}
- */
-export function getDateFromDateTimeValue(dateTimeValue) {
-	return new Date(
-		dateTimeValue.year,
-		dateTimeValue.month - 1,
-		dateTimeValue.day,
-		dateTimeValue.hour,
-		dateTimeValue.minute,
-		dateTimeValue.second,
-		0,
-	)
-}
-
-/**
  * Return Moment from DateTimeValue
  *
  * @param {DateTimeValue} dateTimeValue date of object
  * @return {string}
  */
 export function getMomentFromDateTimeValue(dateTimeValue) {
-	const jsDate = dateTimeValue?.jsDate
-	return moment(jsDate, 'YYYYMMDDTHHmmss')
+	return moment(dateTimeValue?.jsDate, 'YYYYMMDDTHHmmss')
 }

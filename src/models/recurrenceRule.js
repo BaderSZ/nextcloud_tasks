@@ -21,7 +21,6 @@
  */
 
 import { DateTimeValue, RecurValue } from '@nextcloud/calendar-js'
-import { getDateFromDateTimeValue } from '../utils/date.js'
 
 /**
  * Creates a complete recurrence-rule-object based on given props
@@ -519,9 +518,7 @@ const getDefaultRecurrenceRuleObjectForRecurrenceValue = (recurrenceRuleValue, p
 		frequency: recurrenceRuleValue.frequency,
 		interval: parseInt(recurrenceRuleValue.interval, 10) || 1,
 		count: recurrenceRuleValue.count,
-		until: recurrenceRuleValue.until
-			? getDateFromDateTimeValue(recurrenceRuleValue.until)
-			: null,
+		until: recurrenceRuleValue.until?.jsDate,
 	}, props, isUnsupportedProps))
 }
 
