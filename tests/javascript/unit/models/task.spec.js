@@ -269,4 +269,16 @@ describe('task', () => {
 		expect(task.toDoComponent.isDirty()).toEqual(false)
 	})
 
+	it('Test recurrence', () => {
+		const task = new Task(loadICS('vcalendars/recurring-allday'), {})
+
+		expect(task.uid).toEqual('4f7a5e63-6ae5-43da-b949-7bad490882c5')
+		expect(task.isRecurring()).toEqual(true)
+		expect(task.recurrenceRule.frequency).toEqual('WEEKLY')
+
+		task.status = 'COMPLETE'
+		expect(task.status).toEqual('NEEDS-ACTION')
+		expect(task.complete).toEqual(0)
+	})
+
 })
