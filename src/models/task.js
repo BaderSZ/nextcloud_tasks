@@ -321,14 +321,14 @@ export default class Task {
 		 *
 		 * @type {DateTimeValue|null}
 		 */
-		this._modified = this.toDoComponent.modificationTime
+		this._modifiedTime = this.toDoComponent.modificationTime
 
 		/**
 		 * Modified moment
 		 *
 		 * @type {moment}
 		 */
-		this._modifiedMoment = getMomentFromDateTimeValue(this._modified)
+		this._modifiedMoment = getMomentFromDateTimeValue(this._modifiedTime)
 
 		/**
 		 * Date when task was created
@@ -532,8 +532,8 @@ export default class Task {
 	 */
 	set uid(uid) {
 		this.toDoComponent.uid = uid
-		this.toDoComponent.undirtify()
 		this._uid = this.toDoComponent.uid
+		this.resetModified()
 	}
 
 	/**
@@ -555,8 +555,8 @@ export default class Task {
 	 */
 	set summary(summary) {
 		this.toDoComponent.title = summary
-		this.toDoComponent.undirtify()
 		this._summary = this.toDoComponent.title
+		this.resetModified()
 	}
 
 	/** @type {number} */
@@ -567,8 +567,8 @@ export default class Task {
 	/** @type {number} */
 	set priority(priority) {
 		this.toDoComponent.priority = (priority === 0) ? null : priority
-		this.toDoComponent.undirtify()
 		this._priority = this.toDoComponent.priority
+		this.resetModified()
 	}
 
 	/** @type {boolean} */
@@ -597,6 +597,7 @@ export default class Task {
 			this.setCompleted(true)
 			this.setStatus('COMPLETED')
 		}
+		this.resetModified()
 	}
 
 	/**
@@ -607,7 +608,6 @@ export default class Task {
 	 */
 	setPercent(complete) {
 		this.toDoComponent.percent = complete
-		this.toDoComponent.undirtify()
 		this._percent = this.toDoComponent.percent
 	}
 
@@ -620,13 +620,13 @@ export default class Task {
 	set completed(completed) {
 		if (completed) {
 			this.complete = 100
-			this.status = 'COMPLETED'
 		} else {
 			if (this.complete === 100) {
 				this.complete = 99
 				this.status = 'IN-PROCESS'
 			}
 		}
+		this.resetModified()
 	}
 
 	/**
@@ -636,7 +636,6 @@ export default class Task {
 	 */
 	setCompleted(completed) {
 		this.toDoComponent.completedDate = completed ? new DateTimeValue() : null
-		this.toDoComponent.undirtify()
 		this._completedDate = this.toDoComponent.completedDate
 		this._completed = !!this._completedDate
 	}
@@ -673,6 +672,7 @@ export default class Task {
 			this.setPercent(null)
 			this.setCompleted(false)
 		}
+		this.resetModified()
 	}
 
 	/**
@@ -685,7 +685,6 @@ export default class Task {
 	 */
 	setStatus(status) {
 		this.toDoComponent.status = status
-		this.toDoComponent.undirtify()
 		this._status = this.toDoComponent.status
 	}
 
@@ -701,8 +700,8 @@ export default class Task {
 		// nextcloud / calendar), delete the property, then recreate
 		// this.toDoComponent.deleteAllProperties('description')
 		this.toDoComponent.description = note
-		this.toDoComponent.undirtify()
 		this._note = this.toDoComponent.description
+		this.resetModified()
 	}
 
 	/** @type {string} */
@@ -724,8 +723,8 @@ export default class Task {
 				this.toDoComponent.addRelation('PARENT', related)
 			}
 		}
-		this.toDoComponent.undirtify()
 		this._related = this.getParent()?.relatedId || null
+		this.resetModified()
 	}
 
 	/**
@@ -753,8 +752,8 @@ export default class Task {
 		} else {
 			this.toDoComponent.deleteAllProperties('x-pinned')
 		}
-		this.toDoComponent.undirtify()
 		this._pinned = this.toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true'
+		this.resetModified()
 	}
 
 	/** @type {boolean} */
@@ -765,8 +764,8 @@ export default class Task {
 	/** @type {boolean} */
 	set hideSubtasks(hide) {
 		this.toDoComponent.updatePropertyWithValue('x-oc-hidesubtasks', +hide)
-		this.toDoComponent.undirtify()
 		this._hideSubtasks = +this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0
+		this.resetModified()
 	}
 
 	/** @type {boolean} */
@@ -777,8 +776,8 @@ export default class Task {
 	/** @type {boolean} */
 	set hideCompletedSubtasks(hide) {
 		this.toDoComponent.updatePropertyWithValue('x-oc-hidecompletedsubtasks', +hide)
-		this.toDoComponent.undirtify()
 		this._hideCompletedSubtasks = +this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0
+		this.resetModified()
 	}
 
 	/** @type {DateTimeValue} */
@@ -789,10 +788,10 @@ export default class Task {
 	/** @type {DateTimeValue|string} */
 	set start(start) {
 		this.toDoComponent.startDate = start
-		this.toDoComponent.undirtify()
 		this._startTime = this.toDoComponent.startDate
 		this._startTimeMoment = getMomentFromDateTimeValue(this._startTime)
 		this._allDay = this.toDoComponent.isAllDay()
+		this.resetModified()
 	}
 
 	/** @type {string} */
@@ -812,9 +811,9 @@ export default class Task {
 	 */
 	set due(due) {
 		this.toDoComponent.dueTime = due
-		this.toDoComponent.undirtify()
 		this._due = this.toDoComponent.dueTime
 		this._allDay = this.toDoComponent.isAllDay()
+		this.resetModified()
 	}
 
 	/** @type {string} */
@@ -825,22 +824,6 @@ export default class Task {
 	/** @type {boolean} */
 	get allDay() {
 		return this.toDoComponent.isAllDay()
-	}
-
-	/** @type {boolean} */
-	set allDay(allDay) {
-		const start = this.toDoComponent.startDate
-		if (start) {
-			start.isDate = allDay
-			this.toDoComponent.startDate = start
-		}
-		const due = this.toDoComponent.dueTime
-		if (due) {
-			due.isDate = allDay
-			this.toDoComponent.dueTime = due
-		}
-		this.toDoComponent.undirtify()
-		this._allDay = this.toDoComponent.isAllDay()
 	}
 
 	/**
@@ -906,13 +889,13 @@ export default class Task {
 		} else {
 			this.toDoComponent.clearAllCategories()
 		}
-		this.toDoComponent.undirtify()
 		this._tags = this.getTags()
+		this.resetModified()
 	}
 
 	/** @type {DateTimeValue} */
 	get modified() {
-		return this._modified.clone()
+		return this._modifiedTime.clone()
 	}
 
 	/** @type {string} */
@@ -933,12 +916,12 @@ export default class Task {
 		} else {
 			this.toDoComponent.creationTime = new DateTimeValue()
 		}
-		this.toDoComponent.undirtify()
 		this._created = this.toDoComponent.creationTime
 		// Update the sortorder if necessary
 		if (this.toDoComponent.getFirstPropertyFirstValue('x-apple-sort-order') === null) {
 			this._sortOrder = this.getSortOrder()
 		}
+		this.resetModified()
 	}
 
 	/** @type {string} */
@@ -954,13 +937,31 @@ export default class Task {
 	/** @type {string} */
 	set class(classification) {
 		this.toDoComponent.accessClass = classification
-		this.toDoComponent.undirtify()
 		this._accessClass = this.toDoComponent.accessClass
+		this.resetModified()
 	}
 
 	/** @type {number} */
 	get sortOrder() {
 		return this._sortOrder
+	}
+
+	/** @type {DateTimeValue} */
+	get lastModified() {
+		return this._modifiedTime
+	}
+
+	/** @type {DateTimeValue} */
+	set lastModified(modificationTime) {
+		this.toDoComponent.modificationTime = modificationTime
+		this._modifiedTime = this.toDoComponent.modificationTime
+		this.toDoComponent.undirtify()
+	}
+
+	/** @todo */
+	resetModified() {
+		// Updates to current UTC Time
+		this.lastModified = DateTimeValue.fromJSDate(new Date())
 	}
 
 	/** @type {number} */
@@ -974,8 +975,8 @@ export default class Task {
 		} else {
 			this.toDoComponent.updatePropertyWithValue('x-apple-sort-order', sortOrder)
 		}
-		this.toDoComponent.undirtify()
 		this._sortOrder = sortOrder
+		this.resetModified()
 	}
 
 	/**
