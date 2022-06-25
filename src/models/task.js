@@ -215,7 +215,9 @@ export default class Task {
 		this._completedDate = this.toDoComponent.completedDate
 
 		/**
-		 * @todo
+		 * moment of completion Date
+		 *
+		 * @type {moment|null}
 		 */
 		this._completedDateMoment = getMomentFromDateTimeValue(this._completedDate) || null
 
@@ -288,8 +290,6 @@ export default class Task {
 
 		/**
 		 * Due moment
-		 *
-		 * @todo Currently only saving up to hrs. Minutes and seconds go missing
 		 *
 		 * @type {moment|null}
 		 */
@@ -441,7 +441,6 @@ export default class Task {
 		/**
 		 * Checks whether component is a recurrence-exception
 		 *
-		 * @todo
 		 * @type {boolean}
 		 */
 		this._isRecurrenceException = this.toDoComponent.isRecurrenceException()
@@ -449,7 +448,6 @@ export default class Task {
 		/**
 		 * Checks whether it's possible to create a recurrence exception for this task
 		 *
-		 * @todo
 		 * @type {boolean}
 		 */
 		this._canCreateRecurrenceException = this.toDoComponent.canCreateRecurrenceExceptions()
@@ -816,11 +814,7 @@ export default class Task {
 		return this._due
 	}
 
-	/**
-	 * @type {DateTimeValue|string}
-	 *
-	 * @todo fix date<->datetime
-	 */
+	/** @type {DateTimeValue|string} */
 	set due(due) {
 		this.toDoComponent.dueTime = due
 		this._due = this.toDoComponent.dueTime
@@ -960,7 +954,7 @@ export default class Task {
 
 	/** @type {DateTimeValue} */
 	get lastModified() {
-		return this._modifiedTime
+		return this._modified
 	}
 
 	/** @type {DateTimeValue} */
@@ -970,7 +964,6 @@ export default class Task {
 		this.toDoComponent.undirtify()
 	}
 
-	/** @todo */
 	resetModified() {
 		// Updates to current UTC Time
 		this.lastModified = DateTimeValue.fromJSDate(new Date())
@@ -1110,6 +1103,7 @@ export default class Task {
 		return this._isRecurring
 	}
 
+	/** @type {string} */
 	toICALJsString() {
 		return this.toDoComponent.toICALJs().toString()
 	}
