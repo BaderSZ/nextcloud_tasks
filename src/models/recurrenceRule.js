@@ -3,6 +3,10 @@
  *
  * @author Georg Ehrke <oc.list@georgehrke.com>
  *
+ * @copyright Copyright (c) 2022 Bader Zaidan
+ *
+ * @author Bader Zaidan <bader@zaidan.pw>
+ *
  * @license AGPL-3.0-or-later
  *
  * This program is free software: you can redistribute it and/or modify
@@ -41,6 +45,8 @@ const getDefaultRecurrenceRuleObject = (props = {}) => Object.assign({}, {
 	// We do not store a timezone here, since we only care about the date part
 	until: null,
 	// List of byDay components to limit/expand the recurrence-rule
+	byHour: [],
+	// List of byDay components to limit/expand the recurrence-rule
 	byDay: [],
 	// List of byMonth components to limit/expand the recurrence-rule
 	byMonth: [],
@@ -55,13 +61,12 @@ const getDefaultRecurrenceRuleObject = (props = {}) => Object.assign({}, {
 /**
  * Gets the string-representation of the weekday of a given date
  *
- * @param {Date} jsDate The date to get the weekday of
+ * @param {DateTimeValue} date The date to get the weekday of
  * @return {string}
  */
-export function getWeekDayFromDate(jsDate) {
-	switch (jsDate.getDay()) {
-	case 0:
-		return 'SU'
+export function getWeekDayFromDate(date) {
+	// TODO: use global start of week
+	switch (date.dayOfWeek(DateTimeValue.MONDAY)) {
 	case 1:
 		return 'MO'
 	case 2:
@@ -74,6 +79,8 @@ export function getWeekDayFromDate(jsDate) {
 		return 'FR'
 	case 6:
 		return 'SA'
+	case 7:
+		return 'SU'
 	default:
 		throw TypeError('Invalid date-object given')
 	}
@@ -88,6 +95,9 @@ export function getWeekDayFromDate(jsDate) {
  */
 const mapRecurrenceRuleValueToRecurrenceRuleObject = (recurrenceRuleValue, baseDate) => {
 	switch (recurrenceRuleValue.frequency) {
+	case 'HOURLY':
+		return mapHourlyRuleValueToRecurrenceRuleObject(recurrenceRuleValue)
+
 	case 'DAILY':
 		return mapDailyRuleValueToRecurrenceRuleObject(recurrenceRuleValue)
 
@@ -100,12 +110,24 @@ const mapRecurrenceRuleValueToRecurrenceRuleObject = (recurrenceRuleValue, baseD
 	case 'YEARLY':
 		return mapYearlyRuleValueToRecurrenceRuleObject(recurrenceRuleValue, baseDate)
 
-	default: // SECONDLY, MINUTELY, HOURLY
+	default: // SECONDLY, MINUTELY
 		return getDefaultRecurrenceRuleObjectForRecurrenceValue(recurrenceRuleValue, {
 			isUnsupported: true,
 		})
 	}
 }
+
+const FORBIDDEN_BY_PARTS_HOURLY = [
+	'BYSECOND',
+	'BYMINUTE', // no?
+	'BYHOUR',
+	'BYDAY',
+	'BYMONTHDAY',
+	'BYYEARDAY',
+	'BYWEEKNO',
+	'BYMONTH',
+	'BYSETPOS',
+]
 
 const FORBIDDEN_BY_PARTS_DAILY = [
 	'BYSECOND',
@@ -172,6 +194,24 @@ const getRangeAsStrings = (start, end) => {
 const SUPPORTED_BY_MONTHDAY_MONTHLY = getRangeAsStrings(1, 31)
 
 const SUPPORTED_BY_MONTH_YEARLY = getRangeAsStrings(1, 12)
+
+/**
+ * Maps a hourly calendar-js recurrence-rule-value to an recurrence-rule-object
+ *
+ * @param {RecurValue} recurrenceRuleValue The calendar-js recurrence rule value
+ * @return {object}
+ */
+const mapHourlyRuleValueToRecurrenceRuleObject = (recurrenceRuleValue) => {
+	/**
+	 * We only support HOURLY rules without any by-parts in the editor.
+	 * If the recurrence-rule contains any by-parts, mark it as unsupported.
+	 */
+	const isUnsupported = containsRecurrenceComponent(recurrenceRuleValue, FORBIDDEN_BY_PARTS_HOURLY)
+
+	return getDefaultRecurrenceRuleObjectForRecurrenceValue(recurrenceRuleValue, {
+		isUnsupported,
+	})
+}
 
 /**
  * Maps a daily calendar-js recurrence-rule-value to an recurrence-rule-object
