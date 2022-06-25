@@ -41,6 +41,8 @@ import { getFirstTodoFromCalendarComponent } from '../utils/task.js'
 
 import SyncStatus from './syncStatus.js'
 
+import { mapRecurrenceRuleValueToRecurrenceRuleObject } from './recurrenceRule.js'
+
 /**
  * @class Task
  * @classdesc Wrapper for ToDoComponent
@@ -418,16 +420,20 @@ export default class Task {
 		 * List of recurrence rules
 		 *
 		 * @see https://github.com/nextcloud/calendar-js/blob/main/src/values/recurValue.js
-		 * @todo Implement @calendar-js/recurrenceRule/RecurValue
+		 * @todo Work with RecurValue lists
 		 *
-		 * @type {RecurValue[]}
+		 * @type {RecurValue}
 		 */
-		this._recurrenceRuleList = []
+		this._recurrenceRule = this.toDoComponent.recurrenceManager.getRecurrenceRuleList()[0]
+
+		/**
+		 * @type {object} Recurrence Rule object {@link recurrenceRuleObject}
+		 */
+		this._recurrenceRuleObject = this._recurrence ? mapRecurrenceRuleValueToRecurrenceRuleObject(this._recurrenceRule) : null
 
 		/**
 		 * Checks whether component is recurring or not
 		 *
-		 * @todo
 		 * @type {boolean}
 		 */
 		this._isRecurring = this.toDoComponent.isRecurring()
@@ -597,6 +603,9 @@ export default class Task {
 			this.setCompleted(true)
 			this.setStatus('COMPLETED')
 		}
+		if (this.isRecurring()) {
+			this.resetRecurring()
+		}
 		this.resetModified()
 	}
 
@@ -671,6 +680,9 @@ export default class Task {
 		} else if (status === 'NEEDS-ACTION' || status === null) {
 			this.setPercent(null)
 			this.setCompleted(false)
+		}
+		if (this.isRecurring()) {
+			this.resetRecurring()
 		}
 		this.resetModified()
 	}
@@ -1042,7 +1054,62 @@ export default class Task {
 		return this._matchesSearchQuery
 	}
 
-	/** @todo */
+	isMasterItem() {
+		return this._isMasterItem
+	}
+
+	resetRecurring() {
+		if (this.isRecurring()) {
+			this._percent = 0
+			this._status = 'NEEDS-ACTION'
+			this._startTime = this.getNextOccurence()
+			this.resetModified()
+		}
+	}
+
+	getNextOccurence() {
+		// TODO PR @nextcloud/calendar-js to add a wrapper of ICAL.Recur.getNextOcurrence
+
+		const recurICAL = this._recurrenceRule.toICALJs()
+		const newrecurICAL = recurICAL.getNextOccurence
+		return DateTimeValue.fromICALJs(newrecurICAL)
+	}
+
+	/** @type {RecurValue} */
+	get recurrenceRule() {
+		return this._recurrenceRule
+	}
+
+	/** @type {RecurValue} */
+	set recurrenceRule(recurrenceRule) {
+		this.toDoComponent.recurrenceRuleList = recurrenceRule
+		this._recurrenceRule = this.toDoComponent.recurrenceRule
+		this._isRecurring = this.toDoComponent.isRecurring()
+		this._isRecurrenceException = this.toDoComponent.isRecurrenceException()
+		this.resetModified()
+	}
+
+	/**
+	 * @readonly
+	 * @type {object}
+	 */
+	get recurrenceRuleObject() {
+		return this._recurrenceRuleObject
+	}
+
+	/**
+	 * @readonly
+	 * @type {boolean}
+	 */
+	get isRecurrenceException() {
+		return this._isRecurrenceException
+	}
+
+	/** @type {boolean} */
+	isRecurring() {
+		return this._isRecurring
+	}
+
 	toICALJsString() {
 		return this.toDoComponent.toICALJs().toString()
 	}
