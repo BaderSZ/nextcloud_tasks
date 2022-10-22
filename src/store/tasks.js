@@ -719,7 +719,6 @@ const actions = {
 
 		const todo = createStandardToDoComponent(this._vm.$appVersion)
 		copyCalendarObjectInstanceIntoTaskComponent(taskData, todo)
-		todo.creationTime = dateTimeFactory()
 
 		const vData = todo.root.toICS()
 
