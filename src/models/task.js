@@ -843,7 +843,7 @@ export const copyCalendarObjectInstanceIntoTaskComponent = (taskObject, toDoComp
 	}
 	if (taskObject.uid) toDoComponent.uid = taskObject.uid
 	if (taskObject.summary) toDoComponent.title = taskObject.summary
-	if (taskObject.description) toDoComponent.description = taskObject.note
+	if (taskObject.note) toDoComponent.description = taskObject.note
 	if (taskObject.status) toDoComponent.status = taskObject.status
 	if (taskObject.complete) toDoComponent.percent = taskObject.complete
 	if (!isNaN(taskObject.priority)) toDoComponent.priority = taskObject.priority
