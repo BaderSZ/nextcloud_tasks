@@ -715,11 +715,12 @@ const actions = {
 		if (taskData.calendar.readOnly) {
 			return
 		}
-		const task = new Task('BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Nextcloud Tasks v' + this._vm.$appVersion + '\nEND:VCALENDAR', taskData.calendar)
 
+		// TODO
 		const todo = createStandardToDoComponent(this._vm.$appVersion)
 		copyCalendarObjectInstanceIntoTaskComponent(taskData, todo)
 
+		const task = new Task(todo.root.toICS(), taskData.calendar)
 		const vData = todo.root.toICS()
 
 		if (!task.dav) {
