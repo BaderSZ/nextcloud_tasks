@@ -18,13 +18,14 @@
  *
  */
 
-import { CalendarComponent, ToDoComponent, RecurrenceManager } from '@nextcloud/calendar-js'
+import { CalendarComponent, ToDoComponent, RecurrenceManager, Property } from '@nextcloud/calendar-js'
 import { dateTimeFactory } from './datetime.js'
 
 const createStandardToDoComponent = (appVersion) => {
+	const productId = new Property('PRODID', '-//Nextcloud Tasks v' + appVersion)
+	const calendar = new CalendarComponent('VCALENDAR', [productId])
+
 	const todo = new ToDoComponent('VTODO')
-	const calendar = new CalendarComponent('VCALENDAR')
-	calendar.productId = '-//Nextcloud Tasks v' + appVersion
 	todo.recurrenceManager = new RecurrenceManager(todo)
 	calendar.addComponent(todo)
 
