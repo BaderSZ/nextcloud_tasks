@@ -19,6 +19,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+import { Timezone } from '@nextcloud/calendar-js'
 import { detectColor, uidToHexColor } from '../utils/color.js'
 import { mapDavShareeToCalendarShareObject } from './calendarShare.js'
 
@@ -102,7 +103,7 @@ const mapDavCollectionToCalendar = (calendar, currentUserPrincipal) => {
 	const order = calendar.order || 0
 	const url = calendar.url
 	const publishURL = calendar.publishURL || null
-	const timezone = calendar.timezone || null
+	const timezone = calendar.timezone || Timezone.floating
 
 	let isSharedWithMe = false
 	if (!currentUserPrincipal) {
