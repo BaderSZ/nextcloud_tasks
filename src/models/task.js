@@ -821,7 +821,7 @@ export const mapToDoComponentToTaskObject = (toDoComponent) => {
 					minute: 0,
 					second: 0,
 					isDate: false,
-				}, Timezone.utc)
+				}, Timezone.floating)
 			).toSeconds()
 		}
 	}
@@ -849,15 +849,24 @@ export const copyCalendarObjectInstanceIntoTaskComponent = (taskObject, toDoComp
 	if (!isNaN(taskObject.priority)) toDoComponent.priority = taskObject.priority
 	if (taskObject.related) toDoComponent.addRelation('PARENT', taskObject.related)
 
-	// TODO: error while adding task w start date (today pane) recurrence item has a null start date. error: 'other is null'.
+	// In case this is a recurring component, use parent/root's start date.
 	if (taskObject.start) {
-		if (!toDoComponent.root.startDate) toDoComponent.root.startDate = DateTimeValue.fromICALJs(taskObject.start, Timezone.utc)
-		else toDoComponent.startDate = DateTimeValue.fromICALJs(taskObject.start, Timezone.utc)
+
+		if (!toDoComponent.root.startDate) toDoComponent.root.startDate = DateTimeValue.fromICALJs(taskObject.start)
+		else toDoComponent.startDate = DateTimeValue.fromICALJs(taskObject.start)
 	}
-	if (taskObject.due) toDoComponent.dueTime = DateTimeValue.fromICALJs(taskObject.due, Timezone.utc)
-	if (taskObject.completedDate) toDoComponent.completedTime = DateTimeValue.fromICALJs(taskObject.completedDate, Timezone.utc)
-	if (taskObject.modified) toDoComponent.modificationTime = DateTimeValue.fromICALJs(taskObject.modified, Timezone.utc)
-	if (taskObject.created) toDoComponent.creationTime = DateTimeValue.fromICALJs(taskObject.created, Timezone.utc)
+	// TODO: due date may be a string. use `instanceof`
+	if (taskObject.due) {
+		if (typeof taskObject.due === 'string') {
+			toDoComponent.dueTime = DateTimeValue.fromJSDate(new Date(taskObject.due))
+		} else {
+			toDoComponent.dueTime = DateTimeValue.fromICALJs(taskObject.due)
+		}
+	}
+
+	if (taskObject.completedDate) toDoComponent.completedTime = DateTimeValue.fromICALJs(taskObject.completedDate)
+	if (taskObject.modified) toDoComponent.modificationTime = DateTimeValue.fromICALJs(taskObject.modified)
+	if (taskObject.created) toDoComponent.creationTime = DateTimeValue.fromICALJs(taskObject.created)
 	if (taskObject.class) toDoComponent.accessClass = taskObject.class
 	if (taskObject.sortOrder) toDoComponent.updatePropertyWithValue('x-apple-sort-order', taskObject.sortOrder)
 
