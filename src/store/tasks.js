@@ -25,8 +25,9 @@ import { Calendar } from './calendars.js'
 import { findVTODObyUid } from './cdav-requests.js'
 import { isParentInList, momentToICALTime } from './storeHelper.js'
 import SyncStatus from '../models/syncStatus.js'
-import Task from '../models/task.js'
+import Task, { copyCalendarObjectInstanceIntoTaskComponent } from '../models/task.js'
 import router from '../router.js'
+import { createStandardToDoComponent } from '../utils/task.js'
 
 import { showError } from '@nextcloud/dialogs'
 import { emit } from '@nextcloud/event-bus'
@@ -713,41 +714,13 @@ const actions = {
 		if (taskData.calendar.readOnly) {
 			return
 		}
-		const task = new Task('BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Nextcloud Tasks v' + this._vm.$appVersion + '\nEND:VCALENDAR', taskData.calendar)
 
-		task.created = ICAL.Time.now()
-		task.summary = taskData.summary
-		task.hidesubtasks = 0
-		if (taskData.priority) {
-			task.priority = taskData.priority
-		}
-		if (taskData.complete) {
-			task.complete = taskData.complete
-		}
-		if (taskData.note) {
-			task.note = taskData.note
-		}
-		if (taskData.due) {
-			task.due = taskData.due
-		}
-		if (taskData.start) {
-			task.start = taskData.start
-		}
-		if (taskData.allDay) {
-			task.allDay = taskData.allDay
-		}
-		if (taskData.related) {
-			task.related = taskData.related
-			// Check that parent task is not completed, uncomplete if necessary.
-			if (task.complete !== 100) {
-				const parent = context.getters.getParentTask(task)
-				if (parent && parent.completed) {
-					await context.dispatch('setPercentComplete', { task: parent, complete: 0 })
-				}
-			}
-		}
+		// TODO
+		const todo = createStandardToDoComponent(this._vm.$appVersion)
+		copyCalendarObjectInstanceIntoTaskComponent(taskData, todo)
 
-		const vData = ICAL.stringify(task.jCal)
+		const task = new Task(todo.root.toICS(), taskData.calendar)
+		const vData = todo.root.toICS()
 
 		if (!task.dav) {
 			const response = await task.calendar.dav.createVObject(vData)
@@ -1301,7 +1274,7 @@ const actions = {
 				context.commit('setStart', { task, start: newStart })
 				context.dispatch('scheduleTaskUpdate', task)
 			}
-		// Adjust due date
+			// Adjust due date
 		} else if (due.isValid()) {
 			diff = due.diff(moment().startOf('day'), 'days')
 			diff = diff < 0 ? 0 : diff
@@ -1310,7 +1283,7 @@ const actions = {
 				context.commit('setDue', { task, due: newDue })
 				context.dispatch('scheduleTaskUpdate', task)
 			}
-		// Set the due date to appropriate value
+			// Set the due date to appropriate value
 		} else {
 			context.commit('setDue', { task, due: day })
 			context.dispatch('scheduleTaskUpdate', task)

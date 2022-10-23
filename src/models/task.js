@@ -9,6 +9,10 @@
  *
  * @copyright 2021 Raimund Schlüßler <raimund.schluessler@mailbox.org>
  *
+ * @author Bader Zaidan
+ *
+ * @copyright 2022 Bader Zaidan <bader@zaidan.pw>
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU AFFERO GENERAL PUBLIC LICENSE
  * License as published by the Free Software Foundation; either
@@ -29,6 +33,7 @@ import moment from '@nextcloud/moment'
 import { v4 as uuid } from 'uuid'
 import ICAL from 'ical.js'
 import PQueue from 'p-queue'
+import { AbstractRecurringComponent, DateTimeValue, Timezone, ToDoComponent } from '@nextcloud/calendar-js'
 
 export default class Task {
 
@@ -386,7 +391,7 @@ export default class Task {
 			} else {
 				this.vtodo.removeProperty(parent)
 			}
-		// Otherwise create a new property, so we don't overwrite RELTYPE=CHILD/SIBLING entries.
+			// Otherwise create a new property, so we don't overwrite RELTYPE=CHILD/SIBLING entries.
 		} else {
 			if (related) {
 				this.vtodo.addPropertyWithValue('related-to', related)
@@ -554,11 +559,11 @@ export default class Task {
 				const prop = new ICAL.Property('categories')
 				prop.setValues(newTags)
 				tags = this.vtodo.addProperty(prop)
-			// If there is only one tags property, overwrite it
+				// If there is only one tags property, overwrite it
 			} else if (tags.length < 2) {
 				tags[0].setValues(newTags)
-			// If there are multiple tags properties, we have to iterate over all
-			// and remove unwanted tags and add new ones
+				// If there are multiple tags properties, we have to iterate over all
+				// and remove unwanted tags and add new ones
 			} else {
 				const toRemove = this._tags.filter(c => !newTags.includes(c))
 				const toAdd = newTags.filter(c => !this._tags.includes(c))
@@ -712,6 +717,162 @@ export default class Task {
 		}
 		this._matchesSearchQuery = false
 		return this._matchesSearchQuery
+	}
+
+}
+
+/**
+ * Creates a complete calendar-object-instance-object based on given props
+ *
+ * @param {object} props The props already provided
+ * @return {object}
+ */
+export const getDefaultTaskObject = (props = {}) => Object.assign({}, {
+	// calendar-js component
+	toDoComponent: null,
+	// cdav calendar
+	calendar: null,
+	// ICAL.JS component
+	vCalendar: null,
+	subTasks: {},
+	conflict: false,
+	syncStatus: null,
+	deleteCountdown: null,
+	updateQueue: null,
+	// ICAL.Component('vtodo')
+	vtodo: null,
+	uid: '',
+	summary: '',
+	priority: 0,
+	complete: 0,
+	completed: false,
+	completedDate: null,
+	completedDateMoment: null,
+	status: null,
+	note: null,
+	related: null,
+	hideSubtasks: 0,
+	hideCompletedSubtasks: 0,
+	start: null,
+	startMoment: null,
+	due: null,
+	dueMoment: null,
+	allDay: false,
+	loaded: false,
+	tags: [],
+	modified: null,
+	modifiedMoment: null,
+	created: null,
+	createdMoment: null,
+	class: 'PUBLIC',
+	pinned: false,
+	sortOrder: 0,
+	searchQuery: '',
+	matchesSearchQuery: true,
+}, props)
+
+/**
+ *
+ * @param {ToDoComponent} toDoComponent The calendar-js ToDoComponent
+ * @return {object}
+ */
+export const mapToDoComponentToTaskObject = (toDoComponent) => {
+	if (!(toDoComponent instanceof AbstractRecurringComponent)) {
+		throw new Error('Component provided is not a CalendarJS component')
+	}
+	const taskObject = getDefaultTaskObject({
+		toDoComponent,
+		summary: toDoComponent.title || '',
+		uid: toDoComponent.uid || '',
+		priority: toDoComponent.priority || 0,
+		complete: toDoComponent.percent || 0,
+		completed: toDoComponent.percent === 100 || toDoComponent.status === 'COMPLETED',
+		completedDate: toDoComponent.completedTime.clone().toICALJs(),
+		completedDateMoment: moment(toDoComponent.completedTime.clone().toICALJs()),
+		status: toDoComponent.status || 'NEEDS-ACTION',
+		note: toDoComponent.description || '',
+		start: toDoComponent.startDate.clone()?.toICALJs(),
+		startMoment: moment(toDoComponent.startDate.clone()?.toICALJs()),
+		due: toDoComponent.dueTime.clone()?.toICALJs(),
+		dueMoment: moment(toDoComponent.dueTime.clone()?.toICALJs()),
+		tags: toDoComponent.getCategoryList(),
+		modified: toDoComponent.modificationTime.clone()?.toICALJs(),
+		modifiedMoment: moment(toDoComponent.modificationTime.clone()),
+		created: toDoComponent.creationTime.clone()?.toICALJs(),
+		createdMoment: moment(toDoComponent.creationTime.clone()?.toICALJs()),
+		class: toDoComponent.accessClass || 'PUBLIC',
+		pinned: toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true',
+		allDay: toDoComponent.dueTime !== null && toDoComponent.startDate !== null ? toDoComponent.isAllDay() : true,
+		searchQuery: '',
+		matchesSearchQuery: true,
+	})
+
+	let sortOrder = toDoComponent.getFirstPropertyFirstValue('x-apple-sort-order')
+	if (sortOrder === null) {
+		if (taskObject.created === null) {
+			sortOrder = 0
+		} else {
+			sortOrder = this.created.subtractDate(
+				new ICAL.Time({
+					year: 2001,
+					month: 1,
+					day: 1,
+					hour: 0,
+					minute: 0,
+					second: 0,
+					isDate: false,
+				}, Timezone.floating)
+			).toSeconds()
+		}
+	}
+
+	taskObject.sortOrder = +sortOrder
+
+	return taskObject
+}
+
+/**
+ * Copy data from a calendar-object-instance into a calendar-js todo component
+ *
+ * @param {object} taskObject The calendar-object-instance object
+ * @param {ToDoComponent} toDoComponent The calendar-js ToDoComponent object
+ */
+export const copyCalendarObjectInstanceIntoTaskComponent = (taskObject, toDoComponent) => {
+	if (!(toDoComponent instanceof AbstractRecurringComponent)) {
+		throw new Error('Component provided is not a CalendarJS component')
+	}
+	if (taskObject.uid) toDoComponent.uid = taskObject.uid
+	if (taskObject.summary) toDoComponent.title = taskObject.summary
+	if (taskObject.note) toDoComponent.description = taskObject.note
+	if (taskObject.status) toDoComponent.status = taskObject.status
+	if (taskObject.complete) toDoComponent.percent = taskObject.complete
+	if (!isNaN(taskObject.priority)) toDoComponent.priority = taskObject.priority
+	if (taskObject.related) toDoComponent.addRelation('PARENT', taskObject.related)
+
+	// In case this is a recurring component, use parent/root's start date.
+	if (taskObject.start) {
+
+		if (!toDoComponent.root.startDate) toDoComponent.root.startDate = DateTimeValue.fromICALJs(taskObject.start)
+		else toDoComponent.startDate = DateTimeValue.fromICALJs(taskObject.start)
+	}
+	// TODO: due date may be a string. use `instanceof`
+	if (taskObject.due) {
+		if (typeof taskObject.due === 'string') {
+			toDoComponent.dueTime = DateTimeValue.fromJSDate(new Date(taskObject.due))
+		} else {
+			toDoComponent.dueTime = DateTimeValue.fromICALJs(taskObject.due)
+		}
+	}
+
+	if (taskObject.completedDate) toDoComponent.completedTime = DateTimeValue.fromICALJs(taskObject.completedDate)
+	if (taskObject.modified) toDoComponent.modificationTime = DateTimeValue.fromICALJs(taskObject.modified)
+	if (taskObject.created) toDoComponent.creationTime = DateTimeValue.fromICALJs(taskObject.created)
+	if (taskObject.class) toDoComponent.accessClass = taskObject.class
+	if (taskObject.sortOrder) toDoComponent.updatePropertyWithValue('x-apple-sort-order', taskObject.sortOrder)
+
+	toDoComponent.clearAllCategories()
+	for (const tag in taskObject.tags) {
+		toDoComponent.addCategory(tag)
 	}
 
 }
