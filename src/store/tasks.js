@@ -28,7 +28,6 @@ import SyncStatus from '../models/syncStatus.js'
 import Task, { copyCalendarObjectInstanceIntoTaskComponent } from '../models/task.js'
 import router from '../router.js'
 import { createStandardToDoComponent } from '../utils/task.js'
-import { dateTimeFactory } from '../utils/datetime.js'
 
 import { showError } from '@nextcloud/dialogs'
 import { emit } from '@nextcloud/event-bus'
