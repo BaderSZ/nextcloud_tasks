@@ -253,3 +253,11 @@ coverage
 .phpunit.result.cache
 
 .php_cs.cache
+
+######
+VSCode
+######
+.vscode/
+
+# Remote Containers extension
+.devcontainer/

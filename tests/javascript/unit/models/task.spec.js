@@ -2,7 +2,7 @@ import Task from 'Models/task.js'
 
 import { loadICS } from '../../../assets/loadAsset.js'
 
-import ICAL from 'ical.js'
+import { DateTimeValue } from '@nextcloud/calendar-js'
 
 describe('task', () => {
 	'use strict'
@@ -45,7 +45,7 @@ describe('task', () => {
 		task.status = 'NEEDS-ACTION'
 		expect(task.complete).toEqual(0)
 		// Check that property gets removed instead of being set to zero
-		const complete = task.vtodo.getFirstPropertyValue('percent-complete')
+		const complete = task.toDoComponent.getFirstPropertyFirstValue('percent-complete')
 		expect(complete).toEqual(null)
 		expect(task.completed).toEqual(false)
 		expect(task.completedDate).toEqual(null)
@@ -101,7 +101,7 @@ describe('task', () => {
 		task.priority = 0
 		expect(task.priority).toEqual(0)
 		// Check that property gets removed instead of being set to zero
-		const priority = task.vtodo.getFirstPropertyValue('priority')
+		const priority = task.toDoComponent.getFirstPropertyFirstValue('priority')
 		expect(priority).toEqual(null)
 	})
 
@@ -146,14 +146,28 @@ describe('task', () => {
 	it('Should not change the sort order, when the created date is changed and x-apple-sort-order is set.', () => {
 		const task = new Task(loadICS('vcalendars/vcalendar-sortOrder1'), {})
 		expect(task.sortOrder).toEqual(1)
-		task.created = ICAL.Time.fromDateTimeString('2018-11-19T18:39:11')
+		task.created = DateTimeValue.fromData({
+			year: 2018,
+			month: 11,
+			day: 19,
+			hour: 18,
+			minute: 39,
+			second: 11,
+		})
 		expect(task.sortOrder).toEqual(1)
 	})
 
 	it('Should update the sort order, when the created date is changed and x-apple-sort-order is not set.', () => {
 		const task = new Task(loadICS('vcalendars/vcalendar-sortOrderByCreated1'), {})
 		expect(task.sortOrder).toEqual(564345550)
-		task.created = ICAL.Time.fromDateTimeString('2018-11-19T18:39:11')
+		task.created = DateTimeValue.fromData({
+			year: 2018,
+			month: 11,
+			day: 19,
+			hour: 18,
+			minute: 39,
+			second: 11,
+		})
 		expect(task.sortOrder).toEqual(564345551)
 	})
 
@@ -209,7 +223,7 @@ describe('task', () => {
 		const task = new Task(loadICS('vcalendars/vcalendar-default'), {})
 		task.status = null
 		// Check that status gets removed instead of being set to zero
-		const complete = task.vtodo.getFirstPropertyValue('status')
+		const complete = task.toDoComponent.getFirstPropertyFirstValue('status')
 		expect(complete).toEqual(null)
 	})
 
@@ -222,4 +236,49 @@ describe('task', () => {
 		task.complete = 100
 		expect(task.closed).toEqual(true)
 	})
+
+	it('Make sure changes do not leave the task marked dirty', () => {
+		const task = new Task(loadICS('vcalendars/vcalendar-default'), {})
+		// make sure task is not dirty when loaded.
+		// perhaps a loop+dict will be nicer here
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.summary = 'my new summary'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.related = 'newparent123'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.priority = 5
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.complete = 0
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.complete = 100
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.uid = 'randomuidhere'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.status = 'IN-PROCESS'
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.tags = ['tag 1', 'tag 2']
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+		task.created = DateTimeValue.fromData({
+			year: 2018,
+			month: 11,
+			day: 19,
+			hour: 18,
+			minute: 39,
+			second: 11,
+		})
+		expect(task.toDoComponent.isDirty()).toEqual(false)
+	})
+
+	it('Test recurrence', () => {
+		const task = new Task(loadICS('vcalendars/recurring-allday'), {})
+
+		expect(task.uid).toEqual('4f7a5e63-6ae5-43da-b949-7bad490882c5')
+		expect(task.isRecurring()).toEqual(true)
+		expect(task.recurrenceRule.frequency).toEqual('WEEKLY')
+
+		task.status = 'COMPLETE'
+		expect(task.status).toEqual('NEEDS-ACTION')
+		expect(task.complete).toEqual(0)
+	})
+
 })

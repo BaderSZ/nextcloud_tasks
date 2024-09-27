@@ -23,7 +23,7 @@
 
 import { Calendar } from './calendars.js'
 import { findVTODObyUid } from './cdav-requests.js'
-import { isParentInList, momentToICALTime } from './storeHelper.js'
+import { isParentInList, momentToJSDateTime } from './storeHelper.js'
 import SyncStatus from '../models/syncStatus.js'
 import Task from '../models/task.js'
 import router from '../router.js'
@@ -33,9 +33,9 @@ import { emit } from '@nextcloud/event-bus'
 import { translate as t } from '@nextcloud/l10n'
 import moment from '@nextcloud/moment'
 
-import ICAL from 'ical.js'
 import Vue from 'vue'
 import Vuex from 'vuex'
+import { DateTimeValue } from '@nextcloud/calendar-js'
 
 Vue.use(Vuex)
 
@@ -544,10 +544,10 @@ const mutations = {
 				} else {
 					start = due.clone()
 				}
-				Vue.set(task, 'start', momentToICALTime(start, allDay))
+				Vue.set(task, 'start', momentToJSDateTime(start))
 			}
 			// Set the due date, convert it to ICALTime first.
-			Vue.set(task, 'due', momentToICALTime(due, allDay))
+			Vue.set(task, 'due', momentToJSDateTime(due))
 		}
 	},
 
@@ -575,10 +575,10 @@ const mutations = {
 				} else {
 					due = start.clone()
 				}
-				Vue.set(task, 'due', momentToICALTime(due, allDay))
+				Vue.set(task, 'due', momentToJSDateTime(due, allDay))
 			}
 			// Set the due date, convert it to ICALTime first.
-			Vue.set(task, 'start', momentToICALTime(start, allDay))
+			Vue.set(task, 'start', momentToJSDateTime(start, allDay))
 		}
 	},
 
@@ -655,7 +655,7 @@ const mutations = {
 	updateTask(state, task) {
 		if (state.tasks[task.key] && task instanceof Task) {
 			// replace task object data
-			state.tasks[task.key].updateTask(task.jCal)
+			state.tasks[task.key].updateTask(task.toICALJsString())
 
 		} else {
 			console.error('Error while replacing the following task ', task)
@@ -715,7 +715,7 @@ const actions = {
 		}
 		const task = new Task('BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Nextcloud Tasks v' + this._vm.$appVersion + '\nEND:VCALENDAR', taskData.calendar)
 
-		task.created = ICAL.Time.now()
+		task.created = new DateTimeValue()
 		task.summary = taskData.summary
 		task.hidesubtasks = 0
 		if (taskData.priority) {
@@ -747,10 +747,8 @@ const actions = {
 			}
 		}
 
-		const vData = ICAL.stringify(task.jCal)
-
 		if (!task.dav) {
-			const response = await task.calendar.dav.createVObject(vData)
+			const response = await task.calendar.dav.createVObject(task.toICALJsString())
 			Vue.set(task, 'dav', response)
 			task.syncStatus = new SyncStatus('success', t('tasks', 'Successfully created the task.'))
 			context.commit('appendTask', task)
@@ -920,10 +918,8 @@ const actions = {
 			return
 		}
 
-		const vCalendar = ICAL.stringify(task.jCal)
-
 		if (!task.conflict) {
-			task.dav.data = vCalendar
+			task.dav.data = task.toICALJsString()
 			task.syncStatus = new SyncStatus('sync', t('tasks', 'Synchronizing to the server.'))
 			return task.dav.update()
 				.then((response) => {

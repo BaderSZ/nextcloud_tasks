@@ -9,6 +9,10 @@
  *
  * @copyright 2021 Raimund Schlüßler <raimund.schluessler@mailbox.org>
  *
+ * @author Bader Zaidan
+ *
+ * @copyright 2022 Bader Zaidan <bader@zaidan.pw>
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU AFFERO GENERAL PUBLIC LICENSE
  * License as published by the Free Software Foundation; either
@@ -24,12 +28,31 @@
  *
  */
 
-import moment from '@nextcloud/moment'
-
-import { v4 as uuid } from 'uuid'
-import ICAL from 'ical.js'
 import PQueue from 'p-queue'
 
+import {
+	DateTimeValue, DurationValue, RecurValue,
+	getParserManager, ToDoComponent, RelationProperty,
+} from '@nextcloud/calendar-js'
+
+import { getMomentFromDateTimeValue } from '../utils/date.js'
+
+import { getFirstTodoFromCalendarComponent } from '../utils/task.js'
+
+import SyncStatus from './syncStatus.js'
+
+import { mapRecurrenceRuleValueToRecurrenceRuleObject } from './recurrenceRule.js'
+
+/**
+ * @class Task
+ * @classdesc Wrapper for ToDoComponent
+ *
+ * @todo throw exceptions
+ * @todo confirm and verify value checking and enforcing
+ *
+ * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.2
+ * @see https://github.com/nextcloud/calendar-js/blob/main/src/components/root/toDoComponent.js
+ */
 export default class Task {
 
 	/**
@@ -40,102 +63,408 @@ export default class Task {
 	 * @memberof Task
 	 */
 	constructor(vcalendar, calendar) {
+		const parserManager = getParserManager()
+		const parser = parserManager.getParserForFileType('text/calendar', {
+			// preserveMethod: true,
+			includeTimezones: true,
+		})
+
 		if (typeof vcalendar !== 'string' || vcalendar.length === 0) {
 			throw new Error('Invalid vCalendar')
 		}
 
-		const jCal = ICAL.parse(vcalendar)
-		if (jCal[0] !== 'vcalendar') {
-			throw new Error('Only one task is allowed in the vCalendar data')
+		parser.parse(vcalendar)
+
+		// Getting first Item
+		const calendarComponent = parser.getAllItems()[0]
+
+		if (calendarComponent === undefined) {
+			throw new Error('No calendar component found')
 		}
 
-		this.jCal = jCal
-		this.calendar = calendar
-		this.vCalendar = new ICAL.Component(this.jCal)
-
-		this.subTasks = {}
-
-		// used to state a task is not up to date with
-		// the server and cannot be pushed (etag)
-		this.conflict = false
+		/**
+		 * A ToDoComponent '@nextcloud/calendar.js'.
+		 *
+		 * @see https://github.com/nextcloud/calendar-js
+		 *
+		 * @name Task#toDoComponent
+		 * @type {ToDoComponent}
+		 */
+		this.toDoComponent = getFirstTodoFromCalendarComponent(calendarComponent)
 
 		this.initTodo()
 
+		/**
+		 * @type {object}
+		 */
+		this.calendar = calendar
+
+		/**
+		 * @name Task#subTasks
+		 * @type {object}
+		 */
+		this.subTasks = {}
+
+		/**
+		 * Used to state a task is not up to date with the server
+		 * and cannot be pushed (etag).
+		 *
+		 * @name Task#conflict
+		 * @type {boolean}
+		 */
+		this.conflict = false
+
+		/**
+		 * Task's sync status
+		 *
+		 * @name Task#syncStatus
+		 * @type {SyncStatus|null}
+		 */
 		this.syncStatus = null
 
-		// Time in seconds before the task is going to be deleted
+		/**
+		 * Time in seconds before the task is going to be deleted.
+		 *
+		 * @name Task#deleteCountdown
+		 * @type {number|null}
+		 */
 		this.deleteCountdown = null
 
-		// Queue for update requests with concurrency 1,
-		// because we only want to allow one request at a time
-		// (otherwise we will run into problems with changed ETags).
+		/**
+		 * Queue for update requests with concurrency 1, because
+		 * we only want to allow one request at a time (otherwise
+		 * we will run into problems with changed ETags).
+		 *
+		 * @type {PQueue}
+		 */
 		this.updateQueue = new PQueue({ concurrency: 1 })
 	}
 
+	/**
+	 * Initialize task from ToDoComponent object
+	 *
+	 * @todo remove function and place this in constructor?
+	 * @private
+	 */
 	initTodo() {
-		// if no uid set, create one
-		this.vtodo = this.vCalendar.getFirstSubcomponent('vtodo')
-
-		if (!this.vtodo) {
-			this.vtodo = new ICAL.Component('vtodo')
-			this.vCalendar.addSubcomponent(this.vtodo)
-		}
-
-		if (!this.vtodo.hasProperty('uid')) {
-			console.debug('This task did not have a proper uid. Setting a new one for ', this)
-			this.vtodo.addPropertyWithValue('uid', uuid())
-		}
-
 		// Define properties, so Vue reacts to changes of them
-		this._uid = this.vtodo.getFirstPropertyValue('uid') || ''
-		this._summary = this.vtodo.getFirstPropertyValue('summary') || ''
-		this._priority = this.vtodo.getFirstPropertyValue('priority') || 0
-		this._complete = this.vtodo.getFirstPropertyValue('percent-complete') || 0
-		const comp = this.vtodo.getFirstPropertyValue('completed')
-		this._completed = !!comp
-		this._completedDate = comp ? comp.toJSDate() : null
-		this._completedDateMoment = moment(this._completedDate, 'YYYYMMDDTHHmmss')
-		this._status = this.vtodo.getFirstPropertyValue('status')
-		this._note = this.vtodo.getFirstPropertyValue('description') || ''
-		this._related = this.getParent()?.getFirstValue() || null
-		this._hideSubtaks = +this.vtodo.getFirstPropertyValue('x-oc-hidesubtasks') || 0
-		this._hideCompletedSubtaks = +this.vtodo.getFirstPropertyValue('x-oc-hidecompletedsubtasks') || 0
-		this._start = this.vtodo.getFirstPropertyValue('dtstart')
-		this._startMoment = moment(this._start, 'YYYYMMDDTHHmmss')
-		this._due = this.vtodo.getFirstPropertyValue('due')
-		this._dueMoment = moment(this._due, 'YYYYMMDDTHHmmss')
-		const start = this.vtodo.getFirstPropertyValue('dtstart')
-		const due = this.vtodo.getFirstPropertyValue('due')
-		const d = due || start
-		this._allDay = d !== null && d.isDate
-		this._loaded = false
-		this._tags = this.getTags()
-		this._modified = this.vtodo.getFirstPropertyValue('last-modified')
-		this._modifiedMoment = moment(this._modified, 'YYYYMMDDTHHmmss')
-		this._created = this.vtodo.getFirstPropertyValue('created')
-		this._createdMoment = moment(this._created, 'YYYYMMDDTHHmmss')
-		this._class = this.vtodo.getFirstPropertyValue('class') || 'PUBLIC'
-		this._pinned = this.vtodo.getFirstPropertyValue('x-pinned') === 'true'
 
-		let sortOrder = this.vtodo.getFirstPropertyValue('x-apple-sort-order')
+		/**
+		 * The unique ID of the task
+		 *
+		 * @type {string}
+		 */
+		this._uid = this.toDoComponent.uid
+
+		/**
+		 * The Title/Summary of the task
+		 *
+		 * @type {string}
+		 */
+		this._summary = this.toDoComponent.title
+
+		/**
+		 * Priority of the task. Acceptable values are between 0 and 9.
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.9
+		 *
+		 * @type {number} UNDEFINED: 0, HIGH: 1 to 4, MEDIUM: 5, LOW: 6 to 9.
+		 */
+		this._priority = this.toDoComponent.priority
+
+		/**
+		 * Percent-Progress of the task.
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.8
+		 *
+		 * @type {number} Percent: not started: 0, in-process: 1->99,
+		 * complete: 100
+		 */
+		this._percent = this.toDoComponent.percent
+
+		/**
+		 * Completed status of the task. True if status is completed or cancelled.
+		 *
+		 * @type {boolean}
+		 */
+		this._completed = this.toDoComponent.completed || this.toDoComponent.percent === 100
+		/**
+		 * Task description
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.5
+		 *
+		 * @type {string|null}
+		 */
+
+		this._note = this.toDoComponent.description
+
+		/**
+		 * Duration of the task
+		 *
+		 * @type {DurationValue|null}
+		 */
+		this._duration = this.toDoComponent.duration
+
+		/**
+		 * Date and time of completion
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.2.1
+		 *
+		 * @type {DateTimeValue|null}
+		 */
+		this._completedDate = this.toDoComponent.completedDate
+
+		/**
+		 * moment of completion Date
+		 *
+		 * @type {moment|null}
+		 */
+		this._completedDateMoment = getMomentFromDateTimeValue(this._completedDate) || null
+
+		/**
+		 * status of the task. Valid results include:
+		 * NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED.
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.11
+		 *
+		 * @type {string}
+		 */
+		this._status = this.toDoComponent.status
+
+		/**
+		 * Parent relative of the task.
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.5
+		 *
+		 * @type {string|null} unique ID of the parent task
+		 */
+		this._related = this.toDoComponent.getRelationList()[0]?.relationType === 'PARENT'
+			? this.toDoComponent.getRelationList()[0].relatedId
+			: null
+
+		/**
+		 * Show or hide subtasks of tasks
+		 *
+		 * @type {boolean}
+		 */
+		this._hideSubtasks = this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0
+
+		/**
+		 * Show or hide completed subtasks of task
+		 *
+		 * @type {boolean}
+		 */
+		this._hideCompletedSubtasks = this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0
+
+		/**
+		 * Start date of task specifing when the task begins
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.2.4
+		 *
+		 * @type {DateTimeValue|null}
+		 */
+		this._startTime = this.toDoComponent.startDate
+
+		/**
+		 * Start moment
+		 *
+		 * @type {moment|null}
+		 */
+		this._startTimeMoment = getMomentFromDateTimeValue(this._startTime)
+
+		/**
+		 * Expected due date of the task
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.2.3
+		 *
+		 * @type {DateTimeValue|null}
+		 */
+		this._due = this.toDoComponent.dueTime
+
+		/**
+		 * If task is all-day
+		 *
+		 * @type {boolean}
+		 */
+		this._allDay = this.toDoComponent.isAllDay()
+
+		/**
+		 * Due moment
+		 *
+		 * @type {moment|null}
+		 */
+		this._dueMoment = getMomentFromDateTimeValue(this._due)
+
+		/**
+		 * Is this task all-day?
+		 *
+		 * @type {boolean}
+		 */
+		this._isAllDay = this.toDoComponent.isAllDay()
+
+		/**
+		 * Save if this task has been loaded to the calendar or not
+		 *
+		 * @type {boolean}
+		 */
+		this._loaded = false
+
+		/**
+		 * Categories of the current task.
+		 *
+		 * @type {string[]}
+		 */
+		this._tags = this.getTags()
+
+		/**
+		 * Date when task was last modified
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.2
+		 *
+		 * @type {DateTimeValue|null}
+		 */
+		this._modifiedTime = this.toDoComponent.modificationTime
+
+		/**
+		 * Modified moment
+		 *
+		 * @type {moment}
+		 */
+		this._modifiedMoment = getMomentFromDateTimeValue(this._modifiedTime)
+
+		/**
+		 * Date when task was created
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.7.1
+		 *
+		 * @type {DateTimeValue}
+		 */
+		this._created = this.toDoComponent.creationTime
+
+		/**
+		 * created moment
+		 *
+		 * @type {moment}
+		 */
+		this._createdMoment = getMomentFromDateTimeValue(this._created)
+
+		/**
+		 * Classification of the task.
+		 *
+		 * Values include: "PUBLIC", "PRIVATE", "CONFIDENTIAL", iana-token, x-name
+		 *
+		 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.3
+		 *
+		 * @type {string}
+		 */
+		this._accessClass = this.toDoComponent.accessClass
+
+		/**
+		 * Has the task been pinned?
+		 *
+		 * @type {boolean}
+		 */
+		this._pinned = this.toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true'
+
+		let sortOrder = this.toDoComponent.getFirstPropertyFirstValue('x-apple-sort-order')
 		if (sortOrder === null) {
 			sortOrder = this.getSortOrder()
 		}
+
+		/**
+		 * Order/Position of the task
+		 *
+		 * @type {number} a positive number
+		 */
 		this._sortOrder = +sortOrder
 
+		/**
+		 * Search query string.
+		 *
+		 * @type {string}
+		 * @todo
+		 */
+
 		this._searchQuery = ''
+
+		/**
+		 * @type {boolean}
+		 * @todo
+		 */
 		this._matchesSearchQuery = true
+
+		/**
+		 * @type {boolean}
+		 * @todo
+		 */
+		this._isMasterItem = this.toDoComponent.isMasterItem()
+
+		/**
+		 * Location of this task.
+		 *
+		 * @see https://tools.ietf.org/html/rfc5545#section-3.8.1.7
+		 * @todo
+		 *
+		 * @type {string|null}
+		 */
+		this._location = this.toDoComponent.location
+
+		/**
+		 * Checks whether it's possible to switch from date-time to date or vise-versa
+		 *
+		 * @type {boolean}
+		 */
+		this._canModifyAllDay = this.toDoComponent.canModifyAllDay()
+
+		/**
+		 * List of recurrence rules
+		 *
+		 * @see https://github.com/nextcloud/calendar-js/blob/main/src/values/recurValue.js
+		 * @todo Work with RecurValue lists
+		 *
+		 * @type {RecurValue}
+		 */
+		this._recurrenceRule = this.toDoComponent.recurrenceManager.getRecurrenceRuleList()[0]
+
+		/**
+		 * @type {object} Recurrence Rule object {@link recurrenceRuleObject}
+		 */
+		this._recurrenceRuleObject = this._recurrence ? mapRecurrenceRuleValueToRecurrenceRuleObject(this._recurrenceRule) : null
+
+		/**
+		 * Checks whether component is recurring or not
+		 *
+		 * @type {boolean}
+		 */
+		this._isRecurring = this.toDoComponent.isRecurring()
+
+		/**
+		 * Checks whether component is a recurrence-exception
+		 *
+		 * @type {boolean}
+		 */
+		this._isRecurrenceException = this.toDoComponent.isRecurrenceException()
+
+		/**
+		 * Checks whether it's possible to create a recurrence exception for this task
+		 *
+		 * @type {boolean}
+		 */
+		this._canCreateRecurrenceException = this.toDoComponent.canCreateRecurrenceExceptions()
 	}
 
 	/**
 	 * Update internal data of this task
 	 *
-	 * @param {jCal} jCal jCal object from ICAL.js
+	 * @param {string} vcalendar standard ICAL in string form
 	 * @memberof Task
 	 */
-	updateTask(jCal) {
-		this.jCal = jCal
-		this.vCalendar = new ICAL.Component(this.jCal)
+	updateTask(vcalendar) {
+		if (typeof vcalendar !== 'string' || vcalendar.length === 0) {
+			throw new Error('Invalid vCalendar')
+		}
+		// todo: try/catch ExpectedICalJSError
+		this.toDoComponent = ToDoComponent.fromICALJs(vcalendar)
 		this.initTodo()
 	}
 
@@ -150,23 +479,11 @@ export default class Task {
 	}
 
 	/**
-	 * Ensure we're normalizing the possible arrays
-	 * into a string by taking the first element
-	 * e.g. ORG:ABC\, Inc.; will output an array because of the semi-colon
-	 *
-	 * @param {Array|string} data the data to normalize
-	 * @return {string}
-	 * @memberof Task
-	 */
-	firstIfArray(data) {
-		return Array.isArray(data) ? data[0] : data
-	}
-
-	/**
 	 * Return the key
 	 *
 	 * @readonly
 	 * @memberof Task
+	 * @type {string}
 	 */
 	get key() {
 		return this.uid + '~' + this.calendar.id
@@ -177,6 +494,7 @@ export default class Task {
 	 *
 	 * @readonly
 	 * @memberof Task
+	 * @type {string}
 	 */
 	get url() {
 		if (this.dav) {
@@ -190,6 +508,7 @@ export default class Task {
 	 *
 	 * @readonly
 	 * @memberof Task
+	 * @type {string}
 	 */
 	get uri() {
 		if (this.dav) {
@@ -203,6 +522,7 @@ export default class Task {
 	 *
 	 * @readonly
 	 * @memberof Task
+	 * @type {string}
 	 */
 	get uid() {
 		return this._uid
@@ -211,12 +531,13 @@ export default class Task {
 	/**
 	 * Set the uid
 	 *
-	 * @param {string} uid the uid to set
+	 * @type {string} uid the uid to set
 	 * @memberof Task
 	 */
 	set uid(uid) {
-		this.vtodo.updatePropertyWithValue('uid', uid)
-		this._uid = this.vtodo.getFirstPropertyValue('uid') || ''
+		this.toDoComponent.uid = uid
+		this._uid = this.toDoComponent.uid
+		this.resetModified()
 	}
 
 	/**
@@ -224,6 +545,7 @@ export default class Task {
 	 *
 	 * @readonly
 	 * @memberof Task
+	 * @type {string}
 	 */
 	get summary() {
 		return this._summary
@@ -232,40 +554,40 @@ export default class Task {
 	/**
 	 * Set the summary
 	 *
-	 * @param {string} summary the summary
+	 * @type {string} summary short text summary
 	 * @memberof Task
 	 */
 	set summary(summary) {
-		this.vtodo.updatePropertyWithValue('summary', summary)
-		this.updateLastModified()
-		this._summary = this.vtodo.getFirstPropertyValue('summary') || ''
+		this.toDoComponent.title = summary
+		this._summary = this.toDoComponent.title
+		this.resetModified()
 	}
 
+	/** @type {number} */
 	get priority() {
 		return Number(this._priority)
 	}
 
+	/** @type {number} */
 	set priority(priority) {
-		// TODO: check that priority is >= 0 and <10
-		if (priority === null || priority === 0) {
-			this.vtodo.removeProperty('priority')
-		} else {
-			this.vtodo.updatePropertyWithValue('priority', priority)
-		}
-		this.updateLastModified()
-		this._priority = this.vtodo.getFirstPropertyValue('priority') || 0
+		this.toDoComponent.priority = (priority === 0) ? null : priority
+		this._priority = this.toDoComponent.priority
+		this.resetModified()
 	}
 
+	/** @type {boolean} */
 	get closed() {
 		return this._completed || this._status === 'CANCELLED'
 	}
 
+	/** @type {number} */
 	get complete() {
-		return Number(this._complete)
+		return Number(this._percent)
 	}
 
+	/** @type {number} */
 	set complete(complete) {
-		this.setComplete(complete)
+		this.setPercent(complete)
 		// Make complete a number
 		complete = +complete
 		if (complete < 100) {
@@ -279,243 +601,259 @@ export default class Task {
 			this.setCompleted(true)
 			this.setStatus('COMPLETED')
 		}
-	}
-
-	setComplete(complete) {
-		if (complete === null || complete === 0) {
-			this.vtodo.removeProperty('percent-complete')
-		} else {
-			this.vtodo.updatePropertyWithValue('percent-complete', complete)
+		if (this.isRecurring()) {
+			this.resetRecurring()
 		}
-		this.updateLastModified()
-		this._complete = this.vtodo.getFirstPropertyValue('percent-complete') || 0
+		this.resetModified()
 	}
 
+	/**
+	 * Set the task progress as complete, percent-progress property to 100.
+	 *
+	 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.8
+	 * @param {number} complete Progress of the task
+	 */
+	setPercent(complete) {
+		this.toDoComponent.percent = complete
+		this._percent = this.toDoComponent.percent
+	}
+
+	/** @type {boolean} */
 	get completed() {
 		return this._completed
 	}
 
+	/** @type {boolean} */
 	set completed(completed) {
-		this.setCompleted(completed)
 		if (completed) {
-			this.setComplete(100)
-			this.setStatus('COMPLETED')
+			this.complete = 100
 		} else {
 			if (this.complete === 100) {
-				this.setComplete(99)
-				this.setStatus('IN-PROCESS')
+				this.complete = 99
+				this.status = 'IN-PROCESS'
 			}
 		}
+		this.resetModified()
 	}
 
+	/**
+	 * Set the status of the task as completed.
+	 *
+	 * @param {boolean} completed True if status is complete. False otherwise
+	 */
 	setCompleted(completed) {
-		if (completed) {
-			this.vtodo.updatePropertyWithValue('completed', ICAL.Time.now())
-		} else {
-			this.vtodo.removeProperty('completed')
-		}
-		this.updateLastModified()
-		const comp = this.vtodo.getFirstPropertyValue('completed')
-		this._completed = !!comp
-		this._completedDate = comp ? comp.toJSDate() : null
-		this._completedDateMoment = moment(this._completedDate, 'YYYYMMDDTHHmmss')
+		this.toDoComponent.completedDate = completed ? new DateTimeValue() : null
+		this._completedDate = this.toDoComponent.completedDate
+		this._completed = !!this._completedDate
 	}
 
+	/** @type {DateTimeValue} */
 	get completedDate() {
 		return this._completedDate
 	}
 
+	/** @type {string} */
 	get completedDateMoment() {
 		return this._completedDateMoment.clone()
 	}
 
+	/** @type {string} */
 	get status() {
 		return this._status
 	}
 
+	/** @type {string} */
 	set status(status) {
 		this.setStatus(status)
 		if (status === 'COMPLETED') {
-			this.setComplete(100)
+			this.setPercent(100)
 			this.setCompleted(true)
 		} else if (status === 'IN-PROCESS') {
 			this.setCompleted(false)
 			if (this.complete === 100) {
-				this.setComplete(99)
+				this.setPercent(99)
 			} else if (this.complete === 0) {
-				this.setComplete(1)
+				this.setPercent(1)
 			}
 		} else if (status === 'NEEDS-ACTION' || status === null) {
-			this.setComplete(0)
+			this.setPercent(null)
 			this.setCompleted(false)
 		}
-	}
-
-	setStatus(status) {
-		if (status === null) {
-			this.vtodo.removeProperty('status')
-		} else {
-			this.vtodo.updatePropertyWithValue('status', status)
+		if (this.isRecurring()) {
+			this.resetRecurring()
 		}
-		this.updateLastModified()
-		this._status = this.vtodo.getFirstPropertyValue('status')
+		this.resetModified()
 	}
 
+	/**
+	 * Set the status of the task
+	 *
+	 * @see https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.11
+	 *
+	 * @param {string} status from ToDo
+	 * @memberof Task
+	 */
+	setStatus(status) {
+		this.toDoComponent.status = status
+		this._status = this.toDoComponent.status
+	}
+
+	/** @type {string} */
 	get note() {
 		return this._note
 	}
 
+	/** @type {string} */
 	set note(note) {
-		// To avoid inconsistent property parameters (bug #3863 in nextcloud/calendar), delete the property, then recreate
-		this.vtodo.removeProperty('description')
-		this.vtodo.addPropertyWithValue('description', note)
-		this.updateLastModified()
-		this._note = this.vtodo.getFirstPropertyValue('description') || ''
+		// TODO: is this comment still valid? check
+		// To avoid inconsistent property parameters (bug #3863 in
+		// nextcloud / calendar), delete the property, then recreate
+		// this.toDoComponent.deleteAllProperties('description')
+		this.toDoComponent.description = note
+		this._note = this.toDoComponent.description
+		this.resetModified()
 	}
 
+	/** @type {string} */
 	get related() {
 		return this._related
 	}
 
+	/** @type {string} */
 	set related(related) {
 		const parent = this.getParent()
-		// If a parent already exists, update or remove it
 		if (parent) {
 			if (related) {
-				parent.setValue(related)
+				parent.relatedId = related
 			} else {
-				this.vtodo.removeProperty(parent)
+				this.toDoComponent.removeRelation(parent)
 			}
-		// Otherwise create a new property, so we don't overwrite RELTYPE=CHILD/SIBLING entries.
 		} else {
 			if (related) {
-				this.vtodo.addPropertyWithValue('related-to', related)
+				this.toDoComponent.addRelation('PARENT', related)
 			}
 		}
-		this.updateLastModified()
-		this._related = this.getParent()?.getFirstValue() || null
+		this._related = this.getParent()?.relatedId || null
+		this.resetModified()
 	}
 
+	/**
+	 * Returns the first parent of the task.
+	 *
+	 * @return {RelationProperty} The first parent of the task
+	 */
 	getParent() {
-		const related = this.vtodo.getAllProperties('related-to')
+		const related = this.toDoComponent.getRelationList()
 		// Return only the first parent for now
 		return related.find(related => {
-			return related.getFirstParameter('reltype') === 'PARENT' || related.getFirstParameter('reltype') === undefined
+			return related.relationType === 'PARENT' || related.relationType === undefined
 		})
 	}
 
+	/** @type {boolean} */
 	get pinned() {
 		return this._pinned
 	}
 
+	/** @type {boolean} */
 	set pinned(pinned) {
 		if (pinned === true) {
-			this.vtodo.updatePropertyWithValue('x-pinned', 'true')
+			this.toDoComponent.updatePropertyWithValue('x-pinned', 'true')
 		} else {
-			this.vtodo.removeProperty('x-pinned')
+			this.toDoComponent.deleteAllProperties('x-pinned')
 		}
-		this.updateLastModified()
-		this._pinned = this.vtodo.getFirstPropertyValue('x-pinned') === 'true'
+		this._pinned = this.toDoComponent.getFirstPropertyFirstValue('x-pinned') === 'true'
+		this.resetModified()
 	}
 
+	/** @type {boolean} */
 	get hideSubtasks() {
-		return this._hideSubtaks
+		return this._hideSubtasks
 	}
 
+	/** @type {boolean} */
 	set hideSubtasks(hide) {
-		this.vtodo.updatePropertyWithValue('x-oc-hidesubtasks', +hide)
-		this.updateLastModified()
-		this._hideSubtaks = +this.vtodo.getFirstPropertyValue('x-oc-hidesubtasks') || 0
+		this.toDoComponent.updatePropertyWithValue('x-oc-hidesubtasks', +hide)
+		this._hideSubtasks = +this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidesubtasks') || 0
+		this.resetModified()
 	}
 
+	/** @type {boolean} */
 	get hideCompletedSubtasks() {
-		return this._hideCompletedSubtaks
+		return this._hideCompletedSubtasks
 	}
 
+	/** @type {boolean} */
 	set hideCompletedSubtasks(hide) {
-		this.vtodo.updatePropertyWithValue('x-oc-hidecompletedsubtasks', +hide)
-		this.updateLastModified()
-		this._hideCompletedSubtaks = +this.vtodo.getFirstPropertyValue('x-oc-hidecompletedsubtasks') || 0
+		this.toDoComponent.updatePropertyWithValue('x-oc-hidecompletedsubtasks', +hide)
+		this._hideCompletedSubtasks = +this.toDoComponent.getFirstPropertyFirstValue('x-oc-hidecompletedsubtasks') || 0
+		this.resetModified()
 	}
 
+	/** @type {DateTimeValue} */
 	get start() {
-		return this._start
+		return this._startTime
 	}
 
+	/** @type {DateTimeValue|string} */
 	set start(start) {
-		if (start) {
-			this.vtodo.updatePropertyWithValue('dtstart', start)
-		} else {
-			this.vtodo.removeProperty('dtstart')
-		}
-		this.updateLastModified()
-		this._start = this.vtodo.getFirstPropertyValue('dtstart')
-		this._startMoment = moment(this._start, 'YYYYMMDDTHHmmss')
-		// Check all day setting
-		const d = this._due || this._start
-		this._allDay = d !== null && d.isDate
+		this.toDoComponent.startDate = start
+		this._startTime = this.toDoComponent.startDate
+		this._startTimeMoment = getMomentFromDateTimeValue(this._startTime)
+		this._allDay = this.toDoComponent.isAllDay()
+		this.resetModified()
 	}
 
+	/** @type {string} */
 	get startMoment() {
-		return this._startMoment.clone()
+		return getMomentFromDateTimeValue(this._startTime)
 	}
 
+	/** @type {DateTimeValue} */
 	get due() {
 		return this._due
 	}
 
+	/** @type {DateTimeValue|string} */
 	set due(due) {
-		if (due) {
-			this.vtodo.updatePropertyWithValue('due', due)
-		} else {
-			this.vtodo.removeProperty('due')
-		}
-		this.updateLastModified()
-		this._due = this.vtodo.getFirstPropertyValue('due')
-		this._dueMoment = moment(this._due, 'YYYYMMDDTHHmmss')
-		// Check all day setting
-		const d = this._due || this._start
-		this._allDay = d !== null && d.isDate
+		this.toDoComponent.dueTime = due
+		this._due = this.toDoComponent.dueTime
+		this._allDay = this.toDoComponent.isAllDay()
+		this.resetModified()
 	}
 
+	/** @type {string} */
 	get dueMoment() {
-		return this._dueMoment.clone()
+		return getMomentFromDateTimeValue(this._due)
 	}
 
+	/** @type {boolean} */
 	get allDay() {
-		return this._allDay
+		return this.toDoComponent.isAllDay()
 	}
 
-	set allDay(allDay) {
-		let start = this.vtodo.getFirstPropertyValue('dtstart')
-		if (start) {
-			start.isDate = allDay
-			this.vtodo.updatePropertyWithValue('dtstart', start)
-		}
-		let due = this.vtodo.getFirstPropertyValue('due')
-		if (due) {
-			due.isDate = allDay
-			this.vtodo.updatePropertyWithValue('due', due)
-		}
-		this.updateLastModified()
-		start = this.vtodo.getFirstPropertyValue('dtstart')
-		due = this.vtodo.getFirstPropertyValue('due')
-		const d = due || start
-		this._allDay = d !== null && d.isDate
-	}
-
+	/**
+	 * @type {null}
+	 * @todo
+	 */
 	get comments() {
 		return null
 	}
 
+	/** @type {boolean} */
 	get loadedCompleted() {
 		return this._loaded
 	}
 
+	/** @type {boolean} */
 	set loadedCompleted(loadedCompleted) {
 		this._loaded = loadedCompleted
 	}
 
+	/**
+	 * @type {null}
+	 * @todo
+	 */
 	get reminder() {
 		return null
 	}
@@ -523,6 +861,7 @@ export default class Task {
 	/**
 	 * Return the tags
 	 *
+	 * @type {string[]}
 	 * @readonly
 	 * @memberof Task
 	 */
@@ -530,122 +869,119 @@ export default class Task {
 		return this._tags
 	}
 
+	/**
+	 * Return the tags/categories of the task
+	 *
+	 * @return {Array<string>}
+	 *
+	 * @memberof Task
+	 */
 	getTags() {
-		let tags = []
-		for (const t of this.vtodo.getAllProperties('categories')) {
-			if (t) {
-				tags = tags.concat(t.getValues())
-			}
-		}
-		return tags
+		return Array.from(this.toDoComponent.getCategoryIterator())
 	}
 
 	/**
 	 * Set the tags
 	 *
-	 * @param {string} newTags The tags
+	 * @type {string[]} newTags The tags
 	 * @memberof Task
 	 */
 	set tags(newTags) {
 		if (newTags.length > 0) {
-			let tags = this.vtodo.getAllProperties('categories')
-			// If there are no tags set yet, just set them
-			if (tags.length < 1) {
-				const prop = new ICAL.Property('categories')
-				prop.setValues(newTags)
-				tags = this.vtodo.addProperty(prop)
-			// If there is only one tags property, overwrite it
-			} else if (tags.length < 2) {
-				tags[0].setValues(newTags)
-			// If there are multiple tags properties, we have to iterate over all
-			// and remove unwanted tags and add new ones
-			} else {
-				const toRemove = this._tags.filter(c => !newTags.includes(c))
-				const toAdd = newTags.filter(c => !this._tags.includes(c))
-				// Remove all unwanted tags
-				for (const ts of tags) {
-					const t = ts.getValues().filter(c => !toRemove.includes(c))
-					if (t.length) {
-						ts.setValues(t)
-					} else {
-						this.vtodo.removeProperty(ts)
-					}
-				}
-				// Add new tags
-				tags[0].setValues(tags[0].getValues().concat(toAdd))
+			this.toDoComponent.clearAllCategories()
+			for (const t of newTags) {
+				this.toDoComponent.addCategory(t)
 			}
 		} else {
-			this.vtodo.removeAllProperties('categories')
+			this.toDoComponent.clearAllCategories()
 		}
-		this.updateLastModified()
 		this._tags = this.getTags()
+		this.resetModified()
 	}
 
-	updateLastModified() {
-		const now = ICAL.Time.now()
-		this.vtodo.updatePropertyWithValue('last-modified', now)
-		this.vtodo.updatePropertyWithValue('dtstamp', now)
-		this._modified = now
-		this._modifiedMoment = moment(this._modified, 'YYYYMMDDTHHmmss')
-	}
-
+	/** @type {DateTimeValue} */
 	get modified() {
-		return this._modified
+		return this._modifiedTime.clone()
 	}
 
+	/** @type {string} */
 	get modifiedMoment() {
 		return this._modifiedMoment.clone()
 	}
 
+	/** @type {DateTimeValue} */
 	get created() {
-		return this._created
+		return this._created.clone()
 	}
 
+	/** @type {DateTimeValue|string} */
+	set created(createdDate) {
+		if (createdDate !== null) {
+			this.toDoComponent.creationTime = createdDate
+			this._createdMoment = getMomentFromDateTimeValue(this._created)
+		} else {
+			this.toDoComponent.creationTime = new DateTimeValue()
+		}
+		this._created = this.toDoComponent.creationTime
+		// Update the sortorder if necessary
+		if (this.toDoComponent.getFirstPropertyFirstValue('x-apple-sort-order') === null) {
+			this._sortOrder = this.getSortOrder()
+		}
+		this.resetModified()
+	}
+
+	/** @type {string} */
 	get createdMoment() {
 		return this._createdMoment.clone()
 	}
 
-	set created(createdDate) {
-		this.vtodo.updatePropertyWithValue('created', createdDate)
-		this.updateLastModified()
-		this._created = this.vtodo.getFirstPropertyValue('created')
-		this._createdMoment = moment(this._created, 'YYYYMMDDTHHmmss')
-		// Update the sortorder if necessary
-		if (this.vtodo.getFirstPropertyValue('x-apple-sort-order') === null) {
-			this._sortOrder = this.getSortOrder()
-		}
-	}
-
+	/** @type {string} */
 	get class() {
-		return this._class
+		return this._accessClass
 	}
 
+	/** @type {string} */
 	set class(classification) {
-		if (classification) {
-			this.vtodo.updatePropertyWithValue('class', classification)
-		} else {
-			this.vtodo.removeProperty('class')
-		}
-		this.updateLastModified()
-		this._class = this.vtodo.getFirstPropertyValue('class') || 'PUBLIC'
+		this.toDoComponent.accessClass = classification
+		this._accessClass = this.toDoComponent.accessClass
+		this.resetModified()
 	}
 
+	/** @type {number} */
 	get sortOrder() {
 		return this._sortOrder
 	}
 
+	/** @type {DateTimeValue} */
+	get lastModified() {
+		return this._modified
+	}
+
+	/** @type {DateTimeValue} */
+	set lastModified(modificationTime) {
+		this.toDoComponent.modificationTime = modificationTime
+		this._modifiedTime = this.toDoComponent.modificationTime
+		this.toDoComponent.undirtify()
+	}
+
+	resetModified() {
+		// Updates to current UTC Time
+		this.lastModified = DateTimeValue.fromJSDate(new Date())
+	}
+
+	/** @type {number} */
 	set sortOrder(sortOrder) {
 		// We expect a number for the sort order.
 		sortOrder = parseInt(sortOrder)
 		if (isNaN(sortOrder)) {
-			this.vtodo.removeProperty('x-apple-sort-order')
+			this.toDoComponent.deleteAllProperties('x-apple-sort-order')
 			// Get the default sort order.
 			sortOrder = this.getSortOrder()
 		} else {
-			this.vtodo.updatePropertyWithValue('x-apple-sort-order', sortOrder)
+			this.toDoComponent.updatePropertyWithValue('x-apple-sort-order', sortOrder)
 		}
-		this.updateLastModified()
 		this._sortOrder = sortOrder
+		this.resetModified()
 	}
 
 	/**
@@ -655,21 +991,18 @@ export default class Task {
 	 * @return {number} The sort order
 	 */
 	getSortOrder() {
-		// If there is no created date we return 0.
 		if (this._created === null) {
 			return 0
 		}
-		return this._created.subtractDate(
-			new ICAL.Time({
+		return this._created.unixTime
+			- DateTimeValue.fromData({
 				year: 2001,
 				month: 1,
 				day: 1,
 				hour: 0,
 				minute: 0,
 				second: 0,
-				isDate: false,
-			})
-		).toSeconds()
+			}).unixTime
 	}
 
 	/**
@@ -712,6 +1045,67 @@ export default class Task {
 		}
 		this._matchesSearchQuery = false
 		return this._matchesSearchQuery
+	}
+
+	isMasterItem() {
+		return this._isMasterItem
+	}
+
+	resetRecurring() {
+		if (this.isRecurring()) {
+			this._percent = 0
+			this._status = 'NEEDS-ACTION'
+			this._startTime = this.getNextOccurence()
+			this.resetModified()
+		}
+	}
+
+	getNextOccurence() {
+		// TODO PR @nextcloud/calendar-js to add a wrapper of ICAL.Recur.getNextOcurrence
+
+		const recurICAL = this._recurrenceRule.toICALJs()
+		const newrecurICAL = recurICAL.getNextOccurence
+		return DateTimeValue.fromICALJs(newrecurICAL)
+	}
+
+	/** @type {RecurValue} */
+	get recurrenceRule() {
+		return this._recurrenceRule
+	}
+
+	/** @type {RecurValue} */
+	set recurrenceRule(recurrenceRule) {
+		this.toDoComponent.recurrenceRuleList = recurrenceRule
+		this._recurrenceRule = this.toDoComponent.recurrenceRule
+		this._isRecurring = this.toDoComponent.isRecurring()
+		this._isRecurrenceException = this.toDoComponent.isRecurrenceException()
+		this.resetModified()
+	}
+
+	/**
+	 * @readonly
+	 * @type {object}
+	 */
+	get recurrenceRuleObject() {
+		return this._recurrenceRuleObject
+	}
+
+	/**
+	 * @readonly
+	 * @type {boolean}
+	 */
+	get isRecurrenceException() {
+		return this._isRecurrenceException
+	}
+
+	/** @type {boolean} */
+	isRecurring() {
+		return this._isRecurring
+	}
+
+	/** @type {string} */
+	toICALJsString() {
+		return this.toDoComponent.toICALJs().toString()
 	}
 
 }
